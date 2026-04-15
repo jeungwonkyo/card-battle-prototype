@@ -262,11 +262,6 @@ func _refill_empty_player_slots_from_piles() -> void:
 	print("===== 턴 종료 빈 슬롯 드로우 시작 =====")
 	print("빈 슬롯 번호:", _make_slot_no_array(empty_slots))
 
-	var need_count: int = empty_slots.size()
-
-	if deck_cards.size() < need_count and not grave_cards.is_empty():
-		_merge_grave_into_deck_and_shuffle()
-
 	for slot_variant in empty_slots:
 		var target_slot: FieldSlot = slot_variant as FieldSlot
 		if target_slot == null:
@@ -275,6 +270,8 @@ func _refill_empty_player_slots_from_piles() -> void:
 		if target_slot.card != null:
 			continue
 
+		# 슬더스 방식:
+		# 드로우를 실제로 진행하다가 덱이 0일 때만 무덤을 섞어 덱으로 만든다.
 		if deck_cards.is_empty():
 			if grave_cards.is_empty():
 				print("턴 종료 드로우 중단 / 덱과 무덤 모두 비어 있음")
