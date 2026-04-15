@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://dk8a0hssjfief"]
+
+[ext_resource type="Script" uid="uid://djtpqn30gt1q2" path="res://TestCard.gd" id="1_67miw"]
+
+[node name="TestCard" type="Control" unique_id=1745920221]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_67miw")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1627050155]
+layout_mode = 0
+offset_right = 150.0
+offset_bottom = 221.0
+color = Color(1, 0.09019608, 1, 1)
