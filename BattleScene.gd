@@ -7,13 +7,23 @@ const CardStateScript = preload("res://CardState.gd")
 @onready var deck_body: PileBody = $Layer1_PlayerField/Deck
 @onready var grave_body: PileBody = $Layer1_PlayerField/Grave
 @onready var deck_info_button: Button = $Layer1_PlayerField/DeckInfoButton
-@onready var end_turn_button: Button = $Layer0_UI/EndTurnButton
 @onready var grave_info_button: Button = $Layer1_PlayerField/GraveInfoButton
-
+@onready var end_turn_button: Button = $Layer0_UI/EndTurnButton
 
 var deck_cards: Array = []
 var grave_cards: Array = []
 var next_instance_id: int = 1
+
+# 런 중 바뀔 수 있는 전투 값
+var default_card_power: int = 2
+var strike_combo_multiplier: int = 3
+var harmony_combo_multiplier: int = 2
+var monster_start_hp: int = 20
+
+# 카드별 현재 위력
+# key = instance_id
+# value = 현재 카드 위력
+var card_power_by_instance_id: Dictionary = {}
 
 var is_opening_deal_in_progress: bool = false
 var is_refill_draw_in_progress: bool = false
@@ -31,12 +41,20 @@ var pile_popup_scroll: ScrollContainer = null
 var pile_popup_cards_grid: GridContainer = null
 var current_popup_pile_type: String = ""
 
+# 테스트 몬스터 정보
+var monster_hp_by_slot_no: Dictionary = {}
+var monster_root_by_slot_no: Dictionary = {}
+var monster_hp_label_by_slot_no: Dictionary = {}
+var combo_drag_highlighted_monster_slot_no: int = 0
+var is_combo_attack_in_progress: bool = false
+
 func _ready() -> void:
 	_fix_scene_input_layers()
 	_connect_pile_signals()
 	_connect_ui_signals()
 	_build_start_deck()
 	_create_pile_popup()
+	_setup_test_monsters()
 	_print_pile_counts("초기화 완료")
 
 	await get_tree().process_frame
@@ -67,15 +85,16 @@ func _connect_pile_signals() -> void:
 
 func _connect_ui_signals() -> void:
 	if deck_info_button != null:
-		deck_info_button.pressed.connect(_on_deck_info_button_pressed)
+		if not deck_info_button.pressed.is_connected(_on_deck_info_button_pressed):
+			deck_info_button.pressed.connect(_on_deck_info_button_pressed)
 
 	if grave_info_button != null:
-		grave_info_button.pressed.connect(_on_grave_info_button_pressed)
+		if not grave_info_button.pressed.is_connected(_on_grave_info_button_pressed):
+			grave_info_button.pressed.connect(_on_grave_info_button_pressed)
 
 	if end_turn_button != null:
 		if not end_turn_button.pressed.is_connected(_on_end_turn_button_pressed):
 			end_turn_button.pressed.connect(_on_end_turn_button_pressed)
-		print("EndTurnButton 연결 완료 / 실제 경로 사용")
 
 func _on_deck_info_button_pressed() -> void:
 	if current_popup_pile_type == "deck" and pile_popup_overlay != null and pile_popup_overlay.visible:
@@ -92,6 +111,8 @@ func _on_grave_info_button_pressed() -> void:
 	_show_pile_popup("grave")
 
 func _on_end_turn_button_pressed() -> void:
+	print("턴 종료 버튼 눌림")
+
 	if is_opening_deal_in_progress:
 		print("턴 종료 무시 / 오프닝 배치 중")
 		return
@@ -102,10 +123,10 @@ func _on_end_turn_button_pressed() -> void:
 
 	await _refill_empty_player_slots_from_piles()
 
-
 func _build_start_deck() -> void:
 	deck_cards.clear()
 	grave_cards.clear()
+	card_power_by_instance_id.clear()
 	next_instance_id = 1
 
 	var color_names: Array[String] = ["빨강", "파랑", "초록", "노랑"]
@@ -134,8 +155,47 @@ func _create_card_state(data_id: int, combo_id: int, card_name: String, owner_si
 	new_card.card_name = card_name
 	new_card.owner_side = owner_side
 
+	card_power_by_instance_id[new_card.instance_id] = default_card_power
+
 	next_instance_id += 1
 	return new_card
+
+func set_card_power(instance_id: int, new_power: int) -> void:
+	card_power_by_instance_id[instance_id] = new_power
+	print("카드 위력 변경 / instance_id:", instance_id, "/ new_power:", new_power)
+
+func set_combo_multiplier(combo_type: String, new_multiplier: int) -> void:
+	if combo_type == "strike":
+		strike_combo_multiplier = new_multiplier
+		print("스트라이크 배수 변경:", strike_combo_multiplier)
+		return
+
+	if combo_type == "harmony":
+		harmony_combo_multiplier = new_multiplier
+		print("하모니 배수 변경:", harmony_combo_multiplier)
+		return
+
+func _get_card_power_from_card(card: TestCard) -> int:
+	if card == null:
+		return default_card_power
+
+	if card.card_state == null:
+		return default_card_power
+
+	var instance_id: int = int(card.card_state.instance_id)
+	if card_power_by_instance_id.has(instance_id):
+		return int(card_power_by_instance_id[instance_id])
+
+	return default_card_power
+
+func _get_combo_multiplier(combo_type: String) -> int:
+	if combo_type == "strike":
+		return strike_combo_multiplier
+
+	if combo_type == "harmony":
+		return harmony_combo_multiplier
+
+	return 1
 
 func _on_pile_drag_requested(pile_type: String) -> void:
 	if is_opening_deal_in_progress:
@@ -270,8 +330,6 @@ func _refill_empty_player_slots_from_piles() -> void:
 		if target_slot.card != null:
 			continue
 
-		# 슬더스 방식:
-		# 드로우를 실제로 진행하다가 덱이 0일 때만 무덤을 섞어 덱으로 만든다.
 		if deck_cards.is_empty():
 			if grave_cards.is_empty():
 				print("턴 종료 드로우 중단 / 덱과 무덤 모두 비어 있음")
@@ -537,8 +595,12 @@ func get_combo_data_for_card(card: TestCard) -> Dictionary:
 
 	return {}
 
-func try_use_combo_by_leader(leader_card: TestCard, mouse_global_position: Vector2) -> bool:
+func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vector2) -> bool:
 	if leader_card == null:
+		return false
+
+	if is_combo_attack_in_progress:
+		print("조합 사용 실패 / 다른 조합 공격 진행 중")
 		return false
 
 	var combo_data: Dictionary = get_combo_data_for_card(leader_card)
@@ -546,14 +608,16 @@ func try_use_combo_by_leader(leader_card: TestCard, mouse_global_position: Vecto
 		print("조합 사용 실패 / 리더 카드가 조합에 없음")
 		return false
 
-	var target_monster_slot: FieldSlot = _get_monster_slot_at_global_position(mouse_global_position)
+	var target_monster_slot: FieldSlot = _get_combo_drag_highlighted_monster_slot()
 	if target_monster_slot == null:
-		print("조합 사용 실패 / 몬스터 슬롯 위가 아님")
+		print("조합 사용 실패 / 하이라이트된 몬스터가 없음")
 		return false
 
 	combo_data["leader_card"] = leader_card
 
-	print("조합 사용 성공 / 타입:", combo_data.get("combo_type", ""), "/ 리더:", leader_card.card_name, "/ 대상 몬스터 슬롯:", target_monster_slot.slot_no)
+	var combo_type: String = String(combo_data.get("combo_type", ""))
+	var combo_multiplier: int = _get_combo_multiplier(combo_type)
+	var ordered_attack_cards: Array = _get_combo_attack_order(combo_data, leader_card)
 
 	var cards_value = combo_data.get("cards", [])
 	if typeof(cards_value) != TYPE_ARRAY:
@@ -561,25 +625,336 @@ func try_use_combo_by_leader(leader_card: TestCard, mouse_global_position: Vecto
 
 	var combo_cards: Array = cards_value as Array
 
+	print("조합 사용 시작 / 타입:", combo_type, "/ 배수:", combo_multiplier, "/ 리더:", leader_card.card_name, "/ 대상 몬스터 슬롯:", target_monster_slot.slot_no)
+
+	clear_selected_field_card()
+	player_combos.clear()
+	_clear_combo_overlays()
+
+	is_combo_attack_in_progress = true
+	_play_combo_attack_sequence(target_monster_slot.slot_no, combo_multiplier, ordered_attack_cards, combo_cards, leader_card)
+
+	return true
+
+func _get_combo_drag_highlighted_monster_slot() -> FieldSlot:
+	if combo_drag_highlighted_monster_slot_no <= 0:
+		return null
+
+	if _get_monster_current_hp(combo_drag_highlighted_monster_slot_no) <= 0:
+		return null
+
+	return _get_monster_slot(combo_drag_highlighted_monster_slot_no)
+
+func _play_combo_attack_sequence(target_slot_no: int, combo_multiplier: int, ordered_attack_cards: Array, combo_cards: Array, leader_card: TestCard) -> void:
+	var removed_card_instance_ids: Dictionary = {}
+	var detached_cards_to_free: Array = []
+	var preview_owner: TestCard = leader_card
+	var attack_order_index: int = 1
+
+	for attack_card_variant in ordered_attack_cards:
+		if is_inside_tree():
+			await get_tree().create_timer(0.3).timeout
+
+		var attack_card: TestCard = attack_card_variant as TestCard
+		if attack_card == null:
+			continue
+		if not is_instance_valid(attack_card):
+			continue
+
+		if _get_monster_current_hp(target_slot_no) <= 0:
+			print("공격 중단 / 대상 몬스터 이미 사망 / 슬롯:", target_slot_no)
+			break
+
+		var card_power: int = _get_card_power_from_card(attack_card)
+		var hit_damage: int = card_power * combo_multiplier
+
+		print(
+			"조합 타격 / 순서:", attack_order_index,
+			"/ 카드:", attack_card.card_name,
+			"/ 카드위력:", card_power,
+			"/ 배수:", combo_multiplier,
+			"/ 피해:", hit_damage
+		)
+
+		_damage_monster(target_slot_no, hit_damage)
+
+		if preview_owner != null and is_instance_valid(preview_owner):
+			if preview_owner.has_method("consume_combo_drag_preview_card"):
+				preview_owner.consume_combo_drag_preview_card(attack_card)
+
+		_send_combo_card_to_grave(attack_card, removed_card_instance_ids, detached_cards_to_free)
+
+		refresh_player_combos()
+		_print_pile_counts("조합 타격 %d 후" % attack_order_index)
+		_refresh_open_pile_popup()
+
+		attack_order_index += 1
+
 	for combo_card_variant in combo_cards:
 		var combo_card: TestCard = combo_card_variant as TestCard
 		if combo_card == null:
 			continue
+		if not is_instance_valid(combo_card):
+			continue
 
-		if combo_card.card_state != null:
-			grave_cards.append(combo_card.card_state)
+		_send_combo_card_to_grave(combo_card, removed_card_instance_ids, detached_cards_to_free)
 
-		if combo_card.current_slot != null and combo_card.current_slot.card == combo_card:
-			combo_card.current_slot.remove_card()
+	if preview_owner != null and is_instance_valid(preview_owner):
+		if preview_owner.has_method("finish_combo_drag_attack_preview"):
+			preview_owner.finish_combo_drag_attack_preview()
 
-		combo_card.queue_free()
+	for detached_card_variant in detached_cards_to_free:
+		var detached_card: TestCard = detached_card_variant as TestCard
+		if detached_card == null:
+			continue
+		if not is_instance_valid(detached_card):
+			continue
 
-	clear_selected_field_card()
+		detached_card.queue_free()
+
 	refresh_player_combos()
 	_print_pile_counts("조합 사용 후")
 	_refresh_open_pile_popup()
+	is_combo_attack_in_progress = false
 
-	return true
+func _send_combo_card_to_grave(combo_card: TestCard, removed_card_instance_ids: Dictionary, detached_cards_to_free: Array) -> void:
+	if combo_card == null:
+		return
+	if not is_instance_valid(combo_card):
+		return
+
+	var node_instance_id: int = combo_card.get_instance_id()
+	if removed_card_instance_ids.has(node_instance_id):
+		return
+
+	removed_card_instance_ids[node_instance_id] = true
+
+	if combo_card.card_state != null:
+		grave_cards.append(combo_card.card_state)
+		combo_card.card_state = null
+
+	if combo_card.current_slot != null and combo_card.current_slot.card == combo_card:
+		combo_card.current_slot.remove_card()
+
+	detached_cards_to_free.append(combo_card)
+
+func _get_combo_attack_order(combo_data: Dictionary, leader_card: TestCard) -> Array:
+	var ordered_cards: Array = []
+
+	if leader_card == null:
+		return ordered_cards
+
+	ordered_cards.append(leader_card)
+
+	var remaining_cards: Array = []
+	var cards_value = combo_data.get("cards", [])
+	if typeof(cards_value) != TYPE_ARRAY:
+		return ordered_cards
+
+	var cards: Array = cards_value as Array
+
+	for card_variant in cards:
+		var combo_card: TestCard = card_variant as TestCard
+		if combo_card == null:
+			continue
+
+		if combo_card == leader_card:
+			continue
+
+		remaining_cards.append(combo_card)
+
+	remaining_cards.sort_custom(Callable(self, "_sort_cards_by_slot_no"))
+
+	for remaining_card_variant in remaining_cards:
+		ordered_cards.append(remaining_card_variant)
+
+	return ordered_cards
+
+func _sort_cards_by_slot_no(a, b) -> bool:
+	var card_a: TestCard = a as TestCard
+	var card_b: TestCard = b as TestCard
+
+	if card_a == null and card_b == null:
+		return false
+	if card_a == null:
+		return false
+	if card_b == null:
+		return true
+
+	var slot_no_a: int = 999
+	var slot_no_b: int = 999
+
+	if card_a.current_slot != null:
+		slot_no_a = card_a.current_slot.slot_no
+
+	if card_b.current_slot != null:
+		slot_no_b = card_b.current_slot.slot_no
+
+	return slot_no_a < slot_no_b
+
+func _setup_test_monsters() -> void:
+	monster_hp_by_slot_no.clear()
+	monster_root_by_slot_no.clear()
+	monster_hp_label_by_slot_no.clear()
+
+	var monster_slot_nos: Array[int] = [1, 4, 7]
+
+	for slot_no in monster_slot_nos:
+		monster_hp_by_slot_no[slot_no] = monster_start_hp
+		_ensure_monster_visual(slot_no)
+		_update_monster_visual(slot_no)
+
+	print("테스트 몬스터 생성 완료 / 슬롯: 1, 4, 7 / HP:", monster_start_hp)
+
+func _ensure_monster_visual(slot_no: int) -> void:
+	var slot: FieldSlot = _get_monster_slot(slot_no)
+	if slot == null:
+		return
+
+	var root: Control = slot.get_node_or_null("MonsterRoot") as Control
+	if root == null:
+		root = Control.new()
+		root.name = "MonsterRoot"
+		root.position = Vector2.ZERO
+		root.size = slot.size
+		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(root)
+
+	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
+	if body == null:
+		body = ColorRect.new()
+		body.name = "MonsterBody"
+		body.position = Vector2(8, 8)
+		body.size = slot.size - Vector2(16, 16)
+		body.color = Color(0.18, 0.18, 0.18, 0.88)
+		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(body)
+
+	var title_label: Label = root.get_node_or_null("MonsterTitleLabel") as Label
+	if title_label == null:
+		title_label = Label.new()
+		title_label.name = "MonsterTitleLabel"
+		title_label.position = Vector2(0, 18)
+		title_label.size = Vector2(slot.size.x, 24)
+		title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		title_label.add_theme_font_size_override("font_size", 16)
+		title_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+		title_label.text = "몬스터"
+		title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(title_label)
+
+	var hp_label: Label = root.get_node_or_null("MonsterHpLabel") as Label
+	if hp_label == null:
+		hp_label = Label.new()
+		hp_label.name = "MonsterHpLabel"
+		hp_label.position = Vector2(0, 78)
+		hp_label.size = Vector2(slot.size.x, 50)
+		hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		hp_label.add_theme_font_size_override("font_size", 28)
+		hp_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+		hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(hp_label)
+
+	monster_root_by_slot_no[slot_no] = root
+	monster_hp_label_by_slot_no[slot_no] = hp_label
+
+func _update_monster_visual(slot_no: int) -> void:
+	if not monster_root_by_slot_no.has(slot_no):
+		return
+
+	var root: Control = monster_root_by_slot_no[slot_no] as Control
+	var hp_label: Label = monster_hp_label_by_slot_no.get(slot_no, null) as Label
+	if root == null or hp_label == null:
+		return
+
+	var hp: int = int(monster_hp_by_slot_no.get(slot_no, 0))
+
+	root.visible = true
+
+	if hp > 0:
+		hp_label.text = "HP %d" % hp
+	else:
+		hp_label.text = "HP 0"
+
+func _get_monster_current_hp(slot_no: int) -> int:
+	return int(monster_hp_by_slot_no.get(slot_no, 0))
+
+func update_combo_drag_target_highlight_by_point(target_point_global: Vector2) -> void:
+	var target_slot: FieldSlot = _get_alive_monster_slot_at_global_position(target_point_global)
+	var next_slot_no: int = 0
+
+	if target_slot != null:
+		next_slot_no = target_slot.slot_no
+
+	if combo_drag_highlighted_monster_slot_no == next_slot_no:
+		return
+
+	if combo_drag_highlighted_monster_slot_no > 0:
+		_set_combo_drag_monster_highlight(combo_drag_highlighted_monster_slot_no, false)
+
+	combo_drag_highlighted_monster_slot_no = next_slot_no
+
+	if combo_drag_highlighted_monster_slot_no > 0:
+		_set_combo_drag_monster_highlight(combo_drag_highlighted_monster_slot_no, true)
+
+func clear_combo_drag_target_highlight() -> void:
+	if combo_drag_highlighted_monster_slot_no > 0:
+		_set_combo_drag_monster_highlight(combo_drag_highlighted_monster_slot_no, false)
+
+	combo_drag_highlighted_monster_slot_no = 0
+
+
+
+func _set_combo_drag_monster_highlight(slot_no: int, is_on: bool) -> void:
+	if not monster_root_by_slot_no.has(slot_no):
+		return
+
+	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
+	if root == null:
+		return
+
+	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
+	if body == null:
+		return
+
+	if is_on:
+		body.color = Color(0.85, 0.20, 0.20, 0.95)
+	else:
+		body.color = Color(0.18, 0.18, 0.18, 0.88)
+func _damage_monster(slot_no: int, damage: int) -> void:
+	if not monster_hp_by_slot_no.has(slot_no):
+		return
+
+	var current_hp: int = int(monster_hp_by_slot_no.get(slot_no, 0))
+	var next_hp: int = max(0, current_hp - damage)
+	monster_hp_by_slot_no[slot_no] = next_hp
+
+	print("몬스터 피격 / 슬롯:", slot_no, "/ 피해:", damage, "/ 남은 HP:", next_hp)
+	_update_monster_visual(slot_no)
+
+func _get_alive_monster_slot_at_global_position(mouse_global_position: Vector2) -> FieldSlot:
+	var monster_slots: Array = _get_all_monster_slots()
+
+	for slot_variant in monster_slots:
+		var monster_slot: FieldSlot = slot_variant as FieldSlot
+		if monster_slot == null:
+			continue
+
+		if not monster_slot.get_global_rect().has_point(mouse_global_position):
+			continue
+
+		if not monster_hp_by_slot_no.has(monster_slot.slot_no):
+			return null
+
+		var hp: int = int(monster_hp_by_slot_no.get(monster_slot.slot_no, 0))
+		if hp <= 0:
+			return null
+
+		return monster_slot
+
+	return null
 
 func _get_all_player_slots() -> Array:
 	var result: Array = []
@@ -612,19 +987,6 @@ func _get_monster_slot(slot_no: int) -> FieldSlot:
 		return null
 
 	return get_node(slot_path) as FieldSlot
-
-func _get_monster_slot_at_global_position(mouse_global_position: Vector2) -> FieldSlot:
-	var monster_slots: Array = _get_all_monster_slots()
-
-	for slot_variant in monster_slots:
-		var monster_slot: FieldSlot = slot_variant as FieldSlot
-		if monster_slot == null:
-			continue
-
-		if monster_slot.get_global_rect().has_point(mouse_global_position):
-			return monster_slot
-
-	return null
 
 func _clear_combo_overlays() -> void:
 	for overlay_variant in combo_overlay_nodes:
