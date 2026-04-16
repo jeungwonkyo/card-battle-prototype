@@ -455,6 +455,16 @@ func _update_combo_drag_preview(delta: Vector2) -> void:
 		var target_point: Vector2 = _get_combo_drag_target_point(leader_pos, leader_size)
 		battle_scene.update_combo_drag_target_highlight_by_point(target_point)
 
+	if battle_scene != null and battle_scene.has_method("update_combo_drag_snapped_overlap_preview"):
+		var snapped_card_rect_datas: Array = []
+
+		if battle_scene.has_method("get_combo_drag_highlighted_monster_slot_for_preview"):
+			var target_slot: FieldSlot = battle_scene.get_combo_drag_highlighted_monster_slot_for_preview()
+			if target_slot != null:
+				snapped_card_rect_datas = _get_snapped_combo_drag_preview_card_rect_datas(target_slot)
+
+		battle_scene.update_combo_drag_snapped_overlap_preview(snapped_card_rect_datas)
+
 func _get_combo_drag_move_bounds() -> Rect2:
 	var battle_scene = get_tree().current_scene
 	if battle_scene == null:
@@ -556,6 +566,251 @@ func _get_combo_drag_target_point(card_global_position: Vector2, card_size: Vect
 		card_global_position.x + (card_size.x * 0.5),
 		card_global_position.y + (card_size.y * 0.25)
 	)
+
+func _get_combo_drag_preview_leader_index() -> int:
+	if combo_drag_preview_cards.is_empty():
+		return -1
+
+	var leader_card: TestCard = combo_drag_data.get("leader_card", null) as TestCard
+	if leader_card == null:
+		return -1
+
+	var leader_id: int = leader_card.get_instance_id()
+
+	for i in range(combo_drag_preview_cards.size()):
+		var preview_card: Control = combo_drag_preview_cards[i] as Control
+		if preview_card == null:
+			continue
+		if not is_instance_valid(preview_card):
+			continue
+
+		var source_card_id: int = int(preview_card.get_meta("source_card_id", 0))
+		if source_card_id == leader_id:
+			return i
+
+	return -1
+
+func _refresh_combo_drag_preview_layout_from_current_positions() -> void:
+	if combo_drag_preview == null:
+		return
+
+	var left_x: float = INF
+	var right_x: float = -INF
+	var top_y: float = INF
+	var bottom_y: float = -INF
+
+	for preview_card_variant in combo_drag_preview_cards:
+		var preview_card: Control = preview_card_variant as Control
+		if preview_card == null:
+			continue
+		if not is_instance_valid(preview_card):
+			continue
+
+		var pos: Vector2 = preview_card.global_position
+		left_x = min(left_x, pos.x)
+		right_x = max(right_x, pos.x + preview_card.size.x)
+		top_y = min(top_y, pos.y)
+		bottom_y = max(bottom_y, pos.y + preview_card.size.y)
+
+	if left_x == INF:
+		return
+
+	if combo_drag_preview_outline != null:
+		combo_drag_preview_outline.global_position = Vector2(left_x, top_y)
+		combo_drag_preview_outline.size = Vector2(right_x - left_x, bottom_y - top_y)
+
+	if combo_drag_preview_label != null:
+		combo_drag_preview_label.global_position = Vector2(left_x, top_y - 24.0)
+		combo_drag_preview_label.size = Vector2(right_x - left_x, 22.0)
+
+func _get_snapped_combo_drag_preview_card_rect_datas(target_slot: FieldSlot) -> Array:
+	var result: Array = []
+
+	if combo_drag_preview == null:
+		return result
+	if target_slot == null:
+		return result
+
+	var leader_index: int = _get_combo_drag_preview_leader_index()
+	if leader_index == -1:
+		return result
+
+	var leader_preview: Control = combo_drag_preview_cards[leader_index] as Control
+	if leader_preview == null:
+		return result
+	if not is_instance_valid(leader_preview):
+		return result
+
+	var leader_pos: Vector2 = leader_preview.global_position
+	var leader_size: Vector2 = leader_preview.size
+	var target_rect: Rect2 = target_slot.get_global_rect()
+
+	var target_x: float = target_rect.position.x + ((target_rect.size.x - leader_size.x) * 0.5)
+	var target_y: float = leader_pos.y
+
+	var move_bounds: Rect2 = _get_combo_drag_move_bounds()
+	if move_bounds.size.y > 0.0:
+		var max_drag_top_y: float = move_bounds.position.y
+		if target_y > max_drag_top_y:
+			target_y = max_drag_top_y
+
+	var snap_delta: Vector2 = Vector2(
+		target_x - leader_pos.x,
+		target_y - leader_pos.y
+	)
+
+	for preview_card_variant in combo_drag_preview_cards:
+		var preview_card: Control = preview_card_variant as Control
+		if preview_card == null:
+			continue
+		if not is_instance_valid(preview_card):
+			continue
+
+		result.append({
+			"source_card_id": int(preview_card.get_meta("source_card_id", 0)),
+			"rect": Rect2(preview_card.global_position + snap_delta, preview_card.size)
+		})
+
+	return result
+
+func snap_combo_drag_preview_to_monster_slot(target_slot: FieldSlot) -> void:
+	var snapped_card_rect_datas: Array = _get_snapped_combo_drag_preview_card_rect_datas(target_slot)
+	if snapped_card_rect_datas.is_empty():
+		return
+
+	var rect_index: int = 0
+	for preview_card_variant in combo_drag_preview_cards:
+		var preview_card: Control = preview_card_variant as Control
+		if preview_card == null:
+			continue
+		if not is_instance_valid(preview_card):
+			continue
+		if rect_index >= snapped_card_rect_datas.size():
+			break
+
+		var rect_data: Dictionary = snapped_card_rect_datas[rect_index] as Dictionary
+		var snapped_rect: Rect2 = rect_data.get("rect", Rect2())
+		preview_card.global_position = snapped_rect.position
+		rect_index += 1
+
+	_refresh_combo_drag_preview_layout_from_current_positions()
+
+	var battle_scene = get_tree().current_scene
+	if battle_scene != null and battle_scene.has_method("update_combo_drag_snapped_overlap_preview"):
+		battle_scene.update_combo_drag_snapped_overlap_preview(snapped_card_rect_datas)
+
+	if battle_scene != null and battle_scene.has_method("update_combo_drag_target_highlight_by_point"):
+		var leader_index: int = _get_combo_drag_preview_leader_index()
+		if leader_index != -1:
+			var leader_preview: Control = combo_drag_preview_cards[leader_index] as Control
+			if leader_preview != null and is_instance_valid(leader_preview):
+				var snapped_target_point: Vector2 = _get_combo_drag_target_point(
+					leader_preview.global_position,
+					leader_preview.size
+				)
+				battle_scene.update_combo_drag_target_highlight_by_point(snapped_target_point)
+
+func _find_combo_drag_preview_card_by_source_card(source_card: TestCard) -> Control:
+	if combo_drag_preview == null:
+		return null
+	if source_card == null:
+		return null
+
+	var source_card_id: int = source_card.get_instance_id()
+
+	for preview_card_variant in combo_drag_preview_cards:
+		var preview_card: Control = preview_card_variant as Control
+		if preview_card == null:
+			continue
+		if not is_instance_valid(preview_card):
+			continue
+
+		var preview_source_id: int = int(preview_card.get_meta("source_card_id", 0))
+		if preview_source_id == source_card_id:
+			return preview_card
+
+	return null
+
+func play_combo_dash_hit_preview(source_card: TestCard, target_slot_no: int) -> void:
+	var preview_card: Control = _find_combo_drag_preview_card_by_source_card(source_card)
+	if preview_card == null:
+		return
+	if not is_instance_valid(preview_card):
+		return
+	if target_slot_no <= 0:
+		return
+	if combo_drag_preview == null:
+		return
+	if not is_instance_valid(combo_drag_preview):
+		return
+
+	var battle_scene: Node = combo_drag_preview.get_parent()
+	if battle_scene == null:
+		return
+
+	var slot_path: String = "Layer2_MonsterField/M_SlotStation/MonsterSlot%d" % target_slot_no
+	if not battle_scene.has_node(slot_path):
+		return
+
+	var target_slot: FieldSlot = battle_scene.get_node(slot_path) as FieldSlot
+	if target_slot == null:
+		return
+
+	var target_rect: Rect2 = target_slot.get_global_rect()
+	var start_pos: Vector2 = preview_card.global_position
+	var target_x: float = target_rect.position.x + ((target_rect.size.x - preview_card.size.x) * 0.5)
+
+	if absf(target_x - start_pos.x) < 1.0:
+		return
+
+	var step_count: int = 5
+
+	for step in range(1, step_count + 1):
+		if not is_instance_valid(preview_card):
+			return
+		if combo_drag_preview == null:
+			return
+		if not is_instance_valid(combo_drag_preview):
+			return
+
+		var t: float = float(step) / float(step_count)
+		var next_x: float = lerpf(start_pos.x, target_x, t)
+
+		preview_card.global_position = Vector2(next_x, start_pos.y)
+		_refresh_combo_drag_preview_layout_from_current_positions()
+
+		var tree := combo_drag_preview.get_tree()
+		if tree != null:
+			await tree.create_timer(0.02).timeout
+
+func play_combo_contact_hit_preview(source_card: TestCard) -> void:
+	var preview_card: Control = _find_combo_drag_preview_card_by_source_card(source_card)
+	if preview_card == null:
+		return
+	if not is_instance_valid(preview_card):
+		return
+
+	var start_pos: Vector2 = preview_card.global_position
+	var hit_pos: Vector2 = start_pos + Vector2(0, 8)
+	var start_scale: Vector2 = preview_card.scale
+	var hit_scale: Vector2 = Vector2(start_scale.x * 1.04, start_scale.y * 0.96)
+
+	preview_card.global_position = hit_pos
+	preview_card.scale = hit_scale
+	_refresh_combo_drag_preview_layout_from_current_positions()
+
+	if is_inside_tree():
+		await get_tree().create_timer(0.04).timeout
+
+	if not is_instance_valid(preview_card):
+		return
+
+	preview_card.global_position = start_pos
+	preview_card.scale = start_scale
+	_refresh_combo_drag_preview_layout_from_current_positions()
+
+	if is_inside_tree():
+		await get_tree().create_timer(0.05).timeout
 
 func consume_combo_drag_preview_card(source_card: TestCard) -> void:
 	if combo_drag_preview == null:
