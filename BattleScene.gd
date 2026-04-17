@@ -2,6 +2,7 @@ extends Node2D
 
 const TEST_CARD_SCENE = preload("res://test_card.tscn")
 const CardStateScript = preload("res://CardState.gd")
+const MonsterActionSystemScript = preload("res://MonsterActionSystem.gd")
 
 @onready var player_field_layer: Control = $Layer1_PlayerField
 @onready var deck_body: PileBody = $Layer1_PlayerField/Deck
@@ -9,6 +10,10 @@ const CardStateScript = preload("res://CardState.gd")
 @onready var deck_info_button: Button = $Layer1_PlayerField/DeckInfoButton
 @onready var grave_info_button: Button = $Layer1_PlayerField/GraveInfoButton
 @onready var end_turn_button: Button = $Layer0_UI/EndTurnButton
+@onready var player_status_ui: PlayerStatusUI = $Layer0_UI/PlayerStatusUI as PlayerStatusUI
+
+@export_node_path("Node") var final_objective_path: NodePath
+var final_objective: Node = null
 
 var deck_cards: Array = []
 var grave_cards: Array = []
@@ -19,6 +24,10 @@ var default_card_power: int = 2
 var strike_combo_multiplier: int = 3
 var harmony_combo_multiplier: int = 2
 var monster_start_hp: int = 20
+
+# 테스트 중 여기 숫자만 바꾸면 바로 반영됨
+var field_move_tp_cost: int = 2
+var pile_draw_tp_cost: int = 2
 
 # 카드별 현재 위력
 # key = instance_id
@@ -50,13 +59,17 @@ var monster_is_flipping_by_slot_no: Dictionary = {}
 var combo_drag_highlighted_monster_slot_no: int = 0
 var combo_drag_preview_highlight_slot_nos: Array = []
 var combo_drag_preview_card_target_slot_by_id: Dictionary = {}
+var final_objective_combo_drag_highlighted: bool = false
 
+var monster_action_system: MonsterActionSystem = null
 var is_combo_attack_in_progress: bool = false
 
 func _ready() -> void:
 	_fix_scene_input_layers()
 	_connect_pile_signals()
 	_connect_ui_signals()
+	_bind_final_objective()
+	_setup_monster_action_system()
 	_build_start_deck()
 	_create_pile_popup()
 	_setup_test_monsters()
@@ -65,6 +78,158 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await _deal_opening_player_field()
 	refresh_player_combos()
+
+func _setup_monster_action_system() -> void:
+	if monster_action_system != null and is_instance_valid(monster_action_system):
+		return
+
+	monster_action_system = MonsterActionSystemScript.new() as MonsterActionSystem
+	if monster_action_system == null:
+		print("몬스터 행동 시스템 생성 실패")
+		return
+
+	monster_action_system.name = "MonsterActionSystem"
+	add_child(monster_action_system)
+	monster_action_system.setup(self)
+
+	print("몬스터 행동 시스템 연결 완료")
+
+func _run_monster_action_phase(trigger_type: String) -> void:
+	if monster_action_system == null:
+		print("몬스터 행동 페이즈 실패 / 시스템 없음 / 트리거:", trigger_type)
+		return
+
+	if not is_instance_valid(monster_action_system):
+		print("몬스터 행동 페이즈 실패 / 시스템 해제됨 / 트리거:", trigger_type)
+		return
+
+	await monster_action_system.run_action_phase(trigger_type)
+
+func _bind_final_objective() -> void:
+	final_objective = get_node_or_null(final_objective_path)
+
+	if final_objective == null:
+		print("최종목표 연결 실패 / final_objective_path 확인 필요")
+		return
+
+	print("최종목표 연결 완료:", final_objective.name)
+
+func _can_use_player_status_ui() -> bool:
+	return player_status_ui != null and is_instance_valid(player_status_ui)
+
+func _try_spend_tp(cost: int, reason: String) -> bool:
+	if cost <= 0:
+		return true
+
+	if not _can_use_player_status_ui():
+		print("TP 사용 실패 / PlayerStatusUI 연결 필요 / 사유:", reason)
+		return false
+
+	if not player_status_ui.spend_tp(cost):
+		print("TP 부족 / 사유:", reason, "/ 필요:", cost, "/ 현재 TP:", player_status_ui.get_tp())
+		return false
+
+	print("TP 사용 / 사유:", reason, "/ 소모:", cost, "/ 남은 TP:", player_status_ui.get_tp())
+	return true
+
+func _refund_tp(amount: int, reason: String) -> void:
+	if amount <= 0:
+		return
+
+	if not _can_use_player_status_ui():
+		return
+
+	player_status_ui.add_tp(amount)
+	print("TP 환불 / 사유:", reason, "/ 회복:", amount, "/ 현재 TP:", player_status_ui.get_tp())
+
+func _has_alive_combo_target_slots(target_slot_nos: Array) -> bool:
+	for slot_no_variant in target_slot_nos:
+		var slot_no: int = int(slot_no_variant)
+
+		if slot_no <= 0:
+			continue
+
+		if _get_monster_current_hp(slot_no) > 0:
+			return true
+
+	return false
+
+func is_all_monsters_defeated() -> bool:
+	for slot_no in range(1, 8):
+		if _get_monster_current_hp(slot_no) > 0:
+			return false
+
+	return true
+
+func is_final_objective_highlighted_for_combo_drag() -> bool:
+	return final_objective_combo_drag_highlighted
+
+func get_final_objective_rect_for_combo_drag() -> Rect2:
+	if final_objective == null:
+		return Rect2()
+	if not is_instance_valid(final_objective):
+		return Rect2()
+	if not final_objective.has_method("get_objective_rect"):
+		return Rect2()
+
+	return final_objective.call("get_objective_rect")
+
+func _is_final_objective_combo_target_active() -> bool:
+	return is_final_objective_highlighted_for_combo_drag() and _can_hit_final_objective()
+
+func _set_final_objective_combo_drag_highlight(is_on: bool) -> void:
+	final_objective_combo_drag_highlighted = is_on
+
+	if final_objective == null:
+		return
+	if not is_instance_valid(final_objective):
+		return
+	if not final_objective.has_method("set_highlight"):
+		return
+
+	final_objective.call("set_highlight", is_on)
+
+func _is_point_over_final_objective(target_point_global: Vector2) -> bool:
+	if not is_all_monsters_defeated():
+		return false
+
+	if final_objective == null:
+		return false
+	if not is_instance_valid(final_objective):
+		return false
+	if not final_objective.has_method("get_objective_rect"):
+		return false
+
+	var objective_rect: Rect2 = final_objective.call("get_objective_rect")
+	if objective_rect.size.x <= 0.0 or objective_rect.size.y <= 0.0:
+		return false
+
+	return objective_rect.has_point(target_point_global)
+func _can_hit_final_objective() -> bool:
+	if final_objective == null:
+		return false
+
+	if not is_instance_valid(final_objective):
+		return false
+
+	if not final_objective.has_method("get_hp"):
+		return false
+
+	return int(final_objective.call("get_hp")) > 0
+
+func _damage_final_objective(damage: int) -> void:
+	if damage <= 0:
+		return
+
+	if not _can_hit_final_objective():
+		return
+
+	var current_hp: int = int(final_objective.call("get_hp"))
+	var next_hp: int = max(0, current_hp - damage)
+
+	final_objective.call("set_hp", next_hp)
+
+	print("최종목표 피격 / 피해:", damage, "/ 남은 HP:", next_hp)
 
 func _fix_scene_input_layers() -> void:
 	var ignore_paths: Array[String] = [
@@ -98,6 +263,9 @@ func _connect_ui_signals() -> void:
 			grave_info_button.pressed.connect(_on_grave_info_button_pressed)
 
 	if end_turn_button != null:
+		end_turn_button.text = "Turn End"
+		end_turn_button.add_theme_font_size_override("font_size", 34)
+
 		if not end_turn_button.pressed.is_connected(_on_end_turn_button_pressed):
 			end_turn_button.pressed.connect(_on_end_turn_button_pressed)
 
@@ -114,7 +282,6 @@ func _on_grave_info_button_pressed() -> void:
 		return
 
 	_show_pile_popup("grave")
-
 func _on_end_turn_button_pressed() -> void:
 	print("턴 종료 버튼 눌림")
 
@@ -125,6 +292,12 @@ func _on_end_turn_button_pressed() -> void:
 	if is_refill_draw_in_progress:
 		print("턴 종료 무시 / 드로우 배치 중")
 		return
+
+	await _run_monster_action_phase("turn_end")
+
+	if _can_use_player_status_ui():
+		player_status_ui.reset_tp_to_start()
+		print("턴 시작 TP 초기화 / 현재 TP:", player_status_ui.get_tp())
 
 	await _refill_empty_player_slots_from_piles()
 
@@ -222,9 +395,13 @@ func _on_pile_drag_requested(pile_type: String) -> void:
 		return
 
 func _spawn_drag_card_from_pile(pile_type: String) -> void:
+	if not _try_spend_tp(pile_draw_tp_cost, "%s 드로우" % pile_type):
+		return
+
 	var card_state = _pop_card_from_pile(pile_type)
 
 	if card_state == null:
+		_refund_tp(pile_draw_tp_cost, "%s 드로우 실패" % pile_type)
 		print("카드 생성 실패 /", pile_type, "이 비어 있음")
 		return
 
@@ -272,6 +449,7 @@ func _on_pile_drag_finished(card_state, pile_type: String, placed: bool) -> void
 		_refresh_open_pile_popup()
 		return
 
+	_refund_tp(pile_draw_tp_cost, "%s 드로우 취소" % pile_type)
 	_push_card_back_to_pile(pile_type, card_state)
 	print("파일 카드 배치 실패 / 원래 더미로 복귀:", pile_type, "/", card_state.to_log_string())
 	_print_pile_counts("배치 실패 후")
@@ -479,6 +657,9 @@ func _try_move_or_swap_selected_card(target_slot: FieldSlot) -> void:
 		return
 
 	if target_slot.card == null:
+		if not _try_spend_tp(field_move_tp_cost, "필드 이동"):
+			return
+
 		source_slot.remove_card()
 		var moved: bool = target_slot.place_card(source_card)
 
@@ -488,9 +669,13 @@ func _try_move_or_swap_selected_card(target_slot: FieldSlot) -> void:
 			print("클릭 이동 성공 /", source_slot.slot_no, "->", target_slot.slot_no)
 		else:
 			source_slot.place_card(source_card)
+			_refund_tp(field_move_tp_cost, "필드 이동 실패 원복")
 			print("클릭 이동 실패 / 원위치")
 
 		refresh_player_combos()
+		return
+
+	if not _try_spend_tp(field_move_tp_cost, "필드 교체"):
 		return
 
 	var target_card = target_slot.card
@@ -514,6 +699,7 @@ func _try_move_or_swap_selected_card(target_slot: FieldSlot) -> void:
 
 	source_slot.place_card(source_card)
 	target_slot.place_card(target_card)
+	_refund_tp(field_move_tp_cost, "필드 교체 실패 원복")
 	print("클릭 교체 실패 / 원복")
 	refresh_player_combos()
 
@@ -617,13 +803,18 @@ func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vect
 		print("조합 사용 실패 / 리더 카드가 조합에 없음")
 		return false
 
+	var use_final_objective: bool = _is_final_objective_combo_target_active()
 	var target_monster_slot: FieldSlot = _get_combo_drag_highlighted_monster_slot()
-	if target_monster_slot == null:
-		print("조합 사용 실패 / 하이라이트된 몬스터가 없음")
-		return false
 
-	if leader_card.has_method("snap_combo_drag_preview_to_monster_slot"):
-		leader_card.snap_combo_drag_preview_to_monster_slot(target_monster_slot)
+	if use_final_objective:
+		if leader_card.has_method("snap_combo_drag_preview_to_final_objective"):
+			leader_card.snap_combo_drag_preview_to_final_objective()
+	elif target_monster_slot != null:
+		if leader_card.has_method("snap_combo_drag_preview_to_monster_slot"):
+			leader_card.snap_combo_drag_preview_to_monster_slot(target_monster_slot)
+	else:
+		print("조합 사용 실패 / 하이라이트된 몬스터나 최종목표가 없음")
+		return false
 
 	combo_data["leader_card"] = leader_card
 
@@ -634,14 +825,14 @@ func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vect
 	if typeof(cards_value) != TYPE_ARRAY:
 		return false
 
-	var combo_cards: Array = cards_value as Array
 	var attack_plan: Dictionary = _build_combo_attack_plan(combo_data, leader_card)
 
 	print(
 		"조합 사용 시작 / 타입:", combo_type,
 		"/ 배수:", combo_multiplier,
 		"/ 리더:", leader_card.card_name,
-		"/ 리더 타겟 슬롯:", int(attack_plan.get("leader_target_slot_no", 0))
+		"/ 리더 타겟 슬롯:", int(attack_plan.get("leader_target_slot_no", 0)),
+		"/ 리더 타겟 타입:", String(attack_plan.get("leader_target_type", "monster"))
 	)
 
 	clear_selected_field_card()
@@ -649,7 +840,7 @@ func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vect
 	_clear_combo_overlays()
 
 	is_combo_attack_in_progress = true
-	_play_combo_attack_sequence(combo_multiplier, attack_plan, combo_cards, leader_card)
+	_play_combo_attack_sequence(combo_multiplier, attack_plan, leader_card)
 
 	return true
 
@@ -662,7 +853,7 @@ func _get_combo_drag_highlighted_monster_slot() -> FieldSlot:
 
 	return _get_monster_slot(combo_drag_highlighted_monster_slot_no)
 
-func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary, combo_cards: Array, leader_card: TestCard) -> void:
+func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary, leader_card: TestCard) -> void:
 	var removed_card_instance_ids: Dictionary = {}
 	var detached_cards_to_free: Array = []
 	var preview_owner: TestCard = leader_card
@@ -674,6 +865,8 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 
 	var attack_entries: Array = attack_entries_value as Array
 	var leader_target_slot_no: int = int(attack_plan.get("leader_target_slot_no", 0))
+	var leader_target_type: String = String(attack_plan.get("leader_target_type", "monster"))
+	var is_final_objective_target: bool = leader_target_type == "final_objective"
 
 	var overlap_priority_value = attack_plan.get("overlap_priority_slot_nos", [])
 	if typeof(overlap_priority_value) != TYPE_ARRAY:
@@ -707,7 +900,23 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 				overlap_priority_slot_nos
 			)
 
-		if target_slot_no > 0 and _get_monster_current_hp(target_slot_no) > 0:
+		var card_power: int = _get_card_power_from_card(attack_card)
+		var hit_damage: int = card_power * combo_multiplier
+
+		if is_final_objective_target:
+			if preview_owner != null and is_instance_valid(preview_owner):
+				if is_fixed_overlap:
+					if preview_owner.has_method("play_combo_contact_hit_preview"):
+						await preview_owner.play_combo_contact_hit_preview(attack_card)
+				else:
+					if preview_owner.has_method("play_combo_dash_hit_preview_to_final_objective"):
+						await preview_owner.play_combo_dash_hit_preview_to_final_objective(attack_card)
+
+					if preview_owner.has_method("play_combo_contact_hit_preview"):
+						await preview_owner.play_combo_contact_hit_preview(attack_card)
+
+			_damage_final_objective(hit_damage)
+		elif target_slot_no > 0 and _get_monster_current_hp(target_slot_no) > 0:
 			if preview_owner != null and is_instance_valid(preview_owner):
 				if is_fixed_overlap:
 					if preview_owner.has_method("play_combo_contact_hit_preview"):
@@ -720,10 +929,13 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 						await preview_owner.play_combo_contact_hit_preview(attack_card)
 
 			await _play_monster_contact_hit_effect(target_slot_no)
+			await _damage_monster(target_slot_no, hit_damage)
+		elif not _has_alive_combo_target_slots(overlap_priority_slot_nos) and _can_hit_final_objective():
+			if preview_owner != null and is_instance_valid(preview_owner):
+				if preview_owner.has_method("play_combo_contact_hit_preview"):
+					await preview_owner.play_combo_contact_hit_preview(attack_card)
 
-			var card_power: int = _get_card_power_from_card(attack_card)
-			var hit_damage: int = card_power * combo_multiplier
-			_damage_monster(target_slot_no, hit_damage)
+			_damage_final_objective(hit_damage)
 		else:
 			print("조합 타격 실패 / 유효한 타겟 없음 / 카드:", attack_card.card_name)
 
@@ -748,11 +960,13 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 			continue
 
 		detached_card.queue_free()
-
 	refresh_player_combos()
 	_print_pile_counts("조합 사용 후")
 	_refresh_open_pile_popup()
 	clear_combo_drag_target_highlight()
+
+	await _run_monster_action_phase("after_combo")
+
 	is_combo_attack_in_progress = false
 
 func _send_combo_card_to_grave(combo_card: TestCard, removed_card_instance_ids: Dictionary, detached_cards_to_free: Array) -> void:
@@ -780,10 +994,54 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 	var result: Dictionary = {
 		"entries": [],
 		"leader_target_slot_no": 0,
+		"leader_target_type": "monster",
 		"overlap_priority_slot_nos": []
 	}
 
 	if leader_card == null:
+		return result
+
+	var cards_value = combo_data.get("cards", [])
+	if typeof(cards_value) != TYPE_ARRAY:
+		return result
+
+	var combo_cards: Array = cards_value as Array
+	var is_final_objective_target: bool = _is_final_objective_combo_target_active()
+
+	if is_final_objective_target:
+		var final_objective_entries: Array = []
+		var non_leader_cards: Array = []
+
+		final_objective_entries.append({
+			"card": leader_card,
+			"target_slot_no": 0,
+			"is_fixed_overlap": true
+		})
+
+		for combo_card_variant in combo_cards:
+			var combo_card: TestCard = combo_card_variant as TestCard
+			if combo_card == null:
+				continue
+			if combo_card == leader_card:
+				continue
+
+			non_leader_cards.append(combo_card)
+
+		non_leader_cards.sort_custom(Callable(self, "_sort_cards_by_slot_no"))
+
+		for combo_card_variant in non_leader_cards:
+			var combo_card: TestCard = combo_card_variant as TestCard
+			if combo_card == null:
+				continue
+
+			final_objective_entries.append({
+				"card": combo_card,
+				"target_slot_no": 0,
+				"is_fixed_overlap": false
+			})
+
+		result["entries"] = final_objective_entries
+		result["leader_target_type"] = "final_objective"
 		return result
 
 	var leader_card_id: int = leader_card.get_instance_id()
@@ -810,15 +1068,6 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 		"target_slot_no": leader_target_slot_no,
 		"is_fixed_overlap": true
 	})
-
-	var cards_value = combo_data.get("cards", [])
-	if typeof(cards_value) != TYPE_ARRAY:
-		result["entries"] = result_entries
-		result["leader_target_slot_no"] = leader_target_slot_no
-		result["overlap_priority_slot_nos"] = overlap_priority_slot_nos
-		return result
-
-	var combo_cards: Array = cards_value as Array
 
 	for combo_card_variant in combo_cards:
 		var combo_card: TestCard = combo_card_variant as TestCard
@@ -981,82 +1230,49 @@ func _ensure_monster_visual(slot_no: int) -> void:
 	if slot == null:
 		return
 
-	var root: Control = slot.get_node_or_null("MonsterRoot") as Control
-	if root == null:
-		root = Control.new()
-		root.name = "MonsterRoot"
-		root.position = Vector2.ZERO
-		root.size = slot.size
-		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		slot.add_child(root)
+	var unit: MonsterUnit = slot.get_node_or_null("MonsterUnit") as MonsterUnit
+	if unit == null:
+		unit = MonsterUnit.new()
+		unit.name = "MonsterUnit"
+		slot.add_child(unit)
 
-	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
-	if body == null:
-		body = ColorRect.new()
-		body.name = "MonsterBody"
-		body.position = Vector2(8, 8)
-		body.size = slot.size - Vector2(16, 16)
-		body.color = Color(0.18, 0.18, 0.18, 0.88)
-		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		root.add_child(body)
+	unit.setup_unit(slot_no, slot.size)
 
-	var title_label: Label = root.get_node_or_null("MonsterTitleLabel") as Label
-	if title_label == null:
-		title_label = Label.new()
-		title_label.name = "MonsterTitleLabel"
-		title_label.position = Vector2(0, 18)
-		title_label.size = Vector2(slot.size.x, 24)
-		title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		title_label.add_theme_font_size_override("font_size", 16)
-		title_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		title_label.text = "몬스터"
-		title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		root.add_child(title_label)
-
-	var hp_label: Label = root.get_node_or_null("MonsterHpLabel") as Label
-	if hp_label == null:
-		hp_label = Label.new()
-		hp_label.name = "MonsterHpLabel"
-		hp_label.position = Vector2(0, 78)
-		hp_label.size = Vector2(slot.size.x, 50)
-		hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		hp_label.add_theme_font_size_override("font_size", 28)
-		hp_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		root.add_child(hp_label)
-
-	monster_root_by_slot_no[slot_no] = root
-	monster_hp_label_by_slot_no[slot_no] = hp_label
+	monster_root_by_slot_no[slot_no] = unit
+	monster_hp_label_by_slot_no[slot_no] = unit.get_node_or_null("MonsterHpLabel") as Label
 
 func _update_monster_visual(slot_no: int) -> void:
-	if not monster_root_by_slot_no.has(slot_no):
-		return
-
-	var root: Control = monster_root_by_slot_no[slot_no] as Control
-	var hp_label: Label = monster_hp_label_by_slot_no.get(slot_no, null) as Label
-	if root == null or hp_label == null:
+	var unit: MonsterUnit = _get_monster_unit(slot_no)
+	if unit == null:
 		return
 
 	var hp: int = int(monster_hp_by_slot_no.get(slot_no, 0))
+	unit.visible = true
+	unit.set_hp_text(hp)
 
-	root.visible = true
-
-	if hp > 0:
-		hp_label.text = "HP %d" % hp
+	if slot_no == 4:
+		unit.set_effect_symbols(["❄"])
 	else:
-		hp_label.text = "HP 0"
+		unit.set_effect_symbols([])
 
 	if bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
-		_apply_monster_back_face(slot_no)
+		unit.apply_back_face()
 	else:
-		_apply_monster_front_face(slot_no)
+		unit.apply_front_face()
 
 func _get_monster_current_hp(slot_no: int) -> int:
 	return int(monster_hp_by_slot_no.get(slot_no, 0))
 
 func update_combo_drag_target_highlight_by_point(target_point_global: Vector2) -> void:
+	if _is_point_over_final_objective(target_point_global):
+		combo_drag_highlighted_monster_slot_no = 0
+		combo_drag_preview_card_target_slot_by_id.clear()
+		_apply_combo_drag_preview_highlight_slots([])
+		_set_final_objective_combo_drag_highlight(true)
+		return
+
+	_set_final_objective_combo_drag_highlight(false)
+
 	var target_slot: FieldSlot = _get_alive_monster_slot_at_global_position(target_point_global)
 
 	if target_slot == null:
@@ -1098,9 +1314,10 @@ func update_combo_drag_snapped_overlap_preview(card_rect_datas: Array) -> void:
 
 func clear_combo_drag_target_highlight() -> void:
 	_apply_combo_drag_preview_highlight_slots([])
+	_set_final_objective_combo_drag_highlight(false)
 	combo_drag_highlighted_monster_slot_no = 0
 	combo_drag_preview_card_target_slot_by_id.clear()
-
+	
 func _apply_combo_drag_preview_highlight_slots(next_slot_nos: Array) -> void:
 	for prev_slot_no_variant in combo_drag_preview_highlight_slot_nos:
 		var prev_slot_no: int = int(prev_slot_no_variant)
@@ -1145,21 +1362,11 @@ func _get_best_alive_monster_slot_for_rect(card_rect: Rect2) -> FieldSlot:
 	return best_slot
 
 func _set_combo_drag_monster_highlight(slot_no: int, is_on: bool) -> void:
-	if not monster_root_by_slot_no.has(slot_no):
+	var unit: MonsterUnit = _get_monster_unit(slot_no)
+	if unit == null:
 		return
 
-	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
-	if root == null:
-		return
-
-	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
-	if body == null:
-		return
-
-	if is_on:
-		body.color = Color(0.85, 0.20, 0.20, 0.95)
-	else:
-		body.color = Color(0.18, 0.18, 0.18, 0.88)
+	unit.set_highlight(is_on)
 
 func _damage_monster(slot_no: int, damage: int) -> void:
 	if not monster_hp_by_slot_no.has(slot_no):
@@ -1176,109 +1383,36 @@ func _damage_monster(slot_no: int, damage: int) -> void:
 	else:
 		_update_monster_visual(slot_no)
 
-func _apply_monster_front_face(slot_no: int) -> void:
+func _get_monster_unit(slot_no: int) -> MonsterUnit:
 	if not monster_root_by_slot_no.has(slot_no):
-		return
+		return null
 
-	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
-	if root == null:
-		return
-
-	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
-	var title_label: Label = root.get_node_or_null("MonsterTitleLabel") as Label
-	var hp_label: Label = root.get_node_or_null("MonsterHpLabel") as Label
-
-	if body != null:
-		body.color = Color(0.18, 0.18, 0.18, 0.88)
-
-	if title_label != null:
-		title_label.visible = true
-
-	if hp_label != null:
-		hp_label.visible = true
-
-func _apply_monster_back_face(slot_no: int) -> void:
-	if not monster_root_by_slot_no.has(slot_no):
-		return
-
-	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
-	if root == null:
-		return
-
-	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
-	var title_label: Label = root.get_node_or_null("MonsterTitleLabel") as Label
-	var hp_label: Label = monster_hp_label_by_slot_no.get(slot_no, null) as Label
-
-	if body != null:
-		body.color = Color(0.10, 0.10, 0.10, 0.95)
-
-	if title_label != null:
-		title_label.visible = false
-
-	if hp_label != null:
-		hp_label.visible = false
+	return monster_root_by_slot_no.get(slot_no, null) as MonsterUnit
 
 func _flip_monster_to_back(slot_no: int) -> void:
-	if bool(monster_is_flipping_by_slot_no.get(slot_no, false)):
-		return
-	if bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
-		return
-	if not monster_root_by_slot_no.has(slot_no):
-		return
-
-	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
-	if root == null:
+	var unit: MonsterUnit = _get_monster_unit(slot_no)
+	if unit == null:
 		return
 
 	monster_is_flipping_by_slot_no[slot_no] = true
-
-	var close_tween = create_tween()
-	close_tween.tween_property(root, "scale", Vector2(0.0, 1.0), 0.08)
-	await close_tween.finished
-
-	if not is_instance_valid(root):
-		return
-
+	await unit.flip_to_back()
 	monster_is_face_down_by_slot_no[slot_no] = true
-	_apply_monster_back_face(slot_no)
-
-	var open_tween = create_tween()
-	open_tween.tween_property(root, "scale", Vector2(1.0, 1.0), 0.08)
-	await open_tween.finished
-
 	monster_is_flipping_by_slot_no[slot_no] = false
+	_update_monster_visual(slot_no)
 
 func _flip_monster_to_front(slot_no: int) -> void:
-	if bool(monster_is_flipping_by_slot_no.get(slot_no, false)):
+	var unit: MonsterUnit = _get_monster_unit(slot_no)
+	if unit == null:
 		return
 	if not bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
 		return
-	if not monster_root_by_slot_no.has(slot_no):
-		return
-
-	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
-	if root == null:
-		return
 
 	monster_is_flipping_by_slot_no[slot_no] = true
-
-	var close_tween = create_tween()
-	close_tween.tween_property(root, "scale", Vector2(0.0, 1.0), 0.08)
-	await close_tween.finished
-
-	if not is_instance_valid(root):
-		return
-
-	monster_is_face_down_by_slot_no[slot_no] = false
 	monster_hp_by_slot_no[slot_no] = monster_start_hp
-	_apply_monster_front_face(slot_no)
-	_update_monster_visual(slot_no)
-
-	var open_tween = create_tween()
-	open_tween.tween_property(root, "scale", Vector2(1.0, 1.0), 0.08)
-	await open_tween.finished
-
+	await unit.flip_to_front(monster_start_hp)
+	monster_is_face_down_by_slot_no[slot_no] = false
 	monster_is_flipping_by_slot_no[slot_no] = false
+	_update_monster_visual(slot_no)
 
 func _flip_face_down_monsters_to_front_left_to_right() -> void:
 	for slot_no in range(1, 8):
@@ -1289,68 +1423,13 @@ func _flip_face_down_monsters_to_front_left_to_right() -> void:
 
 		await _flip_monster_to_front(slot_no)
 		await get_tree().create_timer(0.06).timeout
-	
-	
 
 func _play_monster_contact_hit_effect(slot_no: int) -> void:
-	print("_play_monster_contact_hit_effect 시작 / 슬롯:", slot_no)
-
-	if not monster_root_by_slot_no.has(slot_no):
-		print("_play_monster_contact_hit_effect / monster_root 없음 / 슬롯:", slot_no)
+	var unit: MonsterUnit = _get_monster_unit(slot_no)
+	if unit == null:
 		return
 
-	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
-	if root == null:
-		print("_play_monster_contact_hit_effect / root null / 슬롯:", slot_no)
-		return
-
-	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
-	if body == null:
-		print("_play_monster_contact_hit_effect / body null / 슬롯:", slot_no)
-		return
-
-	var hp_label: Label = monster_hp_label_by_slot_no.get(slot_no, null) as Label
-
-	var root_start_pos: Vector2 = root.position
-	var root_hit_pos: Vector2 = root_start_pos + Vector2(0, -18)
-
-	var hp_start_pos: Vector2 = Vector2.ZERO
-	var hp_hit_pos: Vector2 = Vector2.ZERO
-	if hp_label != null:
-		hp_start_pos = hp_label.position
-		hp_hit_pos = hp_start_pos + Vector2(0, -8)
-
-	var body_start_color: Color = body.color
-	var flash_color: Color = Color(1.0, 1.0, 1.0, 1.0)
-
-	if is_inside_tree():
-		print("_play_monster_contact_hit_effect / 히트스탑 시작 / 슬롯:", slot_no)
-		await get_tree().create_timer(0.04).timeout
-		print("_play_monster_contact_hit_effect / 히트스탑 종료 / 슬롯:", slot_no)
-
-	print("_play_monster_contact_hit_effect / hit_tween 시작 / 슬롯:", slot_no)
-	var hit_tween = create_tween()
-	hit_tween.set_parallel(true)
-	hit_tween.tween_property(root, "position", root_hit_pos, 0.06)
-	hit_tween.tween_property(body, "color", flash_color, 0.04)
-
-	if hp_label != null:
-		hit_tween.tween_property(hp_label, "position", hp_hit_pos, 0.06)
-
-	await hit_tween.finished
-	print("_play_monster_contact_hit_effect / hit_tween 종료 / 슬롯:", slot_no)
-
-	print("_play_monster_contact_hit_effect / return_tween 시작 / 슬롯:", slot_no)
-	var return_tween = create_tween()
-	return_tween.set_parallel(true)
-	return_tween.tween_property(root, "position", root_start_pos, 0.10)
-	return_tween.tween_property(body, "color", body_start_color, 0.10)
-
-	if hp_label != null:
-		return_tween.tween_property(hp_label, "position", hp_start_pos, 0.10)
-
-	await return_tween.finished
-	print("_play_monster_contact_hit_effect / return_tween 종료 / 슬롯:", slot_no)
+	await unit.play_contact_hit_effect()
 
 func _get_alive_monster_slot_at_global_position(mouse_global_position: Vector2) -> FieldSlot:
 	var monster_slots: Array = _get_all_monster_slots()

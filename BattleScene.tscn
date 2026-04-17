@@ -3,6 +3,8 @@
 [ext_resource type="Script" uid="uid://b6ltri8pnh4q6" path="res://BattleScene.gd" id="1_hvnqj"]
 [ext_resource type="Script" uid="uid://caer02wci8c5m" path="res://FieldSlot.gd" id="1_ttbo7"]
 [ext_resource type="Script" uid="uid://jhfijs2op1o0" path="res://PileBody.gd" id="2_hvnqj"]
+[ext_resource type="Script" uid="uid://cucvr6flq0pnh" path="res://PlayerStatusUI.gd" id="2_teshm"]
+[ext_resource type="Script" uid="uid://dn18qq8qol5pf" path="res://FinalObjective.gd" id="4_musxc"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k6106"]
 corner_radius_top_left = 103
@@ -13,6 +15,7 @@ corner_radius_bottom_left = 103
 [node name="BattleScene" type="Node2D" unique_id=779499420]
 position = Vector2(-142, 52)
 script = ExtResource("1_hvnqj")
+final_objective_path = NodePath("Layer3_Bossfield/FinalObjective")
 
 [node name="BackgroundLayer" type="CanvasLayer" parent="." unique_id=282893741]
 layer = -1
@@ -49,6 +52,7 @@ offset_right = 138.5
 offset_bottom = 45.5
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("2_teshm")
 
 [node name="Panel" type="Panel" parent="Layer0_UI/PlayerStatusUI" unique_id=580024691]
 layout_mode = 1
@@ -64,6 +68,28 @@ offset_left = 1393.0
 offset_top = 8.0
 offset_right = 1585.0
 offset_bottom = 94.0
+
+[node name="PlayerStatusUI2" type="Control" parent="Layer0_UI" unique_id=921783073]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -560.5
+offset_top = -50.5
+offset_right = -357.5
+offset_bottom = 40.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="Panel" parent="Layer0_UI/PlayerStatusUI2" unique_id=200327763]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="UIBoundsGuide" type="ColorRect" parent="Layer0_UI" unique_id=1018519546]
 visible = false
@@ -579,3 +605,8 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_k6106")
 layout_mode = 0
 offset_right = 40.0
 offset_bottom = 40.0
+
+[node name="FinalObjective" type="Node" parent="Layer3_Bossfield" unique_id=342393970]
+script = ExtResource("4_musxc")
+objective_root_path = NodePath("../Boss")
+objective_info_bar_path = NodePath("../BossInfoBar")
