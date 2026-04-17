@@ -356,6 +356,8 @@ func _update_combo_drag_preview(delta: Vector2) -> void:
 	if leader_index == -1:
 		return
 
+	var leader_mouse_offset: Vector2 = field_press_start_mouse_global - leader_base_global
+
 	var applied_delta: Vector2 = delta
 	var move_bounds: Rect2 = _get_combo_drag_move_bounds()
 
@@ -378,6 +380,9 @@ func _update_combo_drag_preview(delta: Vector2) -> void:
 		)
 
 		applied_delta = clamped_leader_global - leader_base_global
+
+		if desired_leader_global.y < min_y:
+			_lock_combo_drag_cursor_y(clamped_leader_global, leader_mouse_offset)
 
 	for i in range(combo_drag_preview_cards.size()):
 		var preview_card: Control = combo_drag_preview_cards[i] as Control
@@ -464,7 +469,6 @@ func _update_combo_drag_preview(delta: Vector2) -> void:
 				snapped_card_rect_datas = _get_snapped_combo_drag_preview_card_rect_datas(target_slot)
 
 		battle_scene.update_combo_drag_snapped_overlap_preview(snapped_card_rect_datas)
-
 func _get_combo_drag_move_bounds() -> Rect2:
 	var battle_scene = get_tree().current_scene
 	if battle_scene == null:
@@ -495,6 +499,19 @@ func _get_combo_drag_move_bounds() -> Rect2:
 		Vector2(left_x, top_y),
 		Vector2(right_x - left_x, bottom_y - top_y)
 	)
+func _lock_combo_drag_cursor_y(clamped_leader_global: Vector2, leader_mouse_offset: Vector2) -> void:
+	var viewport := get_viewport()
+	if viewport == null:
+		return
+
+	var target_canvas_mouse: Vector2 = clamped_leader_global + leader_mouse_offset
+	var target_viewport_mouse: Vector2 = get_canvas_transform() * target_canvas_mouse
+	var current_viewport_mouse: Vector2 = viewport.get_mouse_position()
+
+	if current_viewport_mouse.distance_to(target_viewport_mouse) < 0.5:
+		return
+
+	viewport.warp_mouse(target_viewport_mouse)
 
 func _set_combo_drag_source_cards_visible(visible_state: bool) -> void:
 	if not combo_drag_data.has("cards"):

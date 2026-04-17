@@ -45,6 +45,8 @@ var current_popup_pile_type: String = ""
 var monster_hp_by_slot_no: Dictionary = {}
 var monster_root_by_slot_no: Dictionary = {}
 var monster_hp_label_by_slot_no: Dictionary = {}
+var monster_is_face_down_by_slot_no: Dictionary = {}
+var monster_is_flipping_by_slot_no: Dictionary = {}
 var combo_drag_highlighted_monster_slot_no: int = 0
 var combo_drag_preview_highlight_slot_nos: Array = []
 var combo_drag_preview_card_target_slot_by_id: Dictionary = {}
@@ -319,7 +321,10 @@ func _refill_empty_player_slots_from_piles() -> void:
 
 	if empty_slots.is_empty():
 		print("턴 종료 드로우 없음 / 빈 슬롯 없음")
+		await _flip_face_down_monsters_to_front_left_to_right()
 		is_refill_draw_in_progress = false
+		refresh_player_combos()
+		_refresh_open_pile_popup()
 		return
 
 	print("===== 턴 종료 빈 슬롯 드로우 시작 =====")
@@ -361,6 +366,7 @@ func _refill_empty_player_slots_from_piles() -> void:
 		await get_tree().create_timer(0.06).timeout
 
 	print("===== 턴 종료 빈 슬롯 드로우 종료 =====")
+	await _flip_face_down_monsters_to_front_left_to_right()
 	is_refill_draw_in_progress = false
 	refresh_player_combos()
 	_refresh_open_pile_popup()
@@ -956,11 +962,15 @@ func _setup_test_monsters() -> void:
 	monster_hp_by_slot_no.clear()
 	monster_root_by_slot_no.clear()
 	monster_hp_label_by_slot_no.clear()
+	monster_is_face_down_by_slot_no.clear()
+	monster_is_flipping_by_slot_no.clear()
 
 	var monster_slot_nos: Array[int] = [3, 4, 6]
 
 	for slot_no in monster_slot_nos:
 		monster_hp_by_slot_no[slot_no] = monster_start_hp
+		monster_is_face_down_by_slot_no[slot_no] = false
+		monster_is_flipping_by_slot_no[slot_no] = false
 		_ensure_monster_visual(slot_no)
 		_update_monster_visual(slot_no)
 
@@ -1037,6 +1047,11 @@ func _update_monster_visual(slot_no: int) -> void:
 		hp_label.text = "HP %d" % hp
 	else:
 		hp_label.text = "HP 0"
+
+	if bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
+		_apply_monster_back_face(slot_no)
+	else:
+		_apply_monster_front_face(slot_no)
 
 func _get_monster_current_hp(slot_no: int) -> int:
 	return int(monster_hp_by_slot_no.get(slot_no, 0))
@@ -1154,9 +1169,126 @@ func _damage_monster(slot_no: int, damage: int) -> void:
 	var next_hp: int = max(0, current_hp - damage)
 	monster_hp_by_slot_no[slot_no] = next_hp
 
-
 	print("몬스터 피격 / 슬롯:", slot_no, "/ 피해:", damage, "/ 남은 HP:", next_hp)
+
+	if next_hp <= 0:
+		await _flip_monster_to_back(slot_no)
+	else:
+		_update_monster_visual(slot_no)
+
+func _apply_monster_front_face(slot_no: int) -> void:
+	if not monster_root_by_slot_no.has(slot_no):
+		return
+
+	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
+	if root == null:
+		return
+
+	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
+	var title_label: Label = root.get_node_or_null("MonsterTitleLabel") as Label
+	var hp_label: Label = root.get_node_or_null("MonsterHpLabel") as Label
+
+	if body != null:
+		body.color = Color(0.18, 0.18, 0.18, 0.88)
+
+	if title_label != null:
+		title_label.visible = true
+
+	if hp_label != null:
+		hp_label.visible = true
+
+func _apply_monster_back_face(slot_no: int) -> void:
+	if not monster_root_by_slot_no.has(slot_no):
+		return
+
+	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
+	if root == null:
+		return
+
+	var body: ColorRect = root.get_node_or_null("MonsterBody") as ColorRect
+	var title_label: Label = root.get_node_or_null("MonsterTitleLabel") as Label
+	var hp_label: Label = monster_hp_label_by_slot_no.get(slot_no, null) as Label
+
+	if body != null:
+		body.color = Color(0.10, 0.10, 0.10, 0.95)
+
+	if title_label != null:
+		title_label.visible = false
+
+	if hp_label != null:
+		hp_label.visible = false
+
+func _flip_monster_to_back(slot_no: int) -> void:
+	if bool(monster_is_flipping_by_slot_no.get(slot_no, false)):
+		return
+	if bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
+		return
+	if not monster_root_by_slot_no.has(slot_no):
+		return
+
+	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
+	if root == null:
+		return
+
+	monster_is_flipping_by_slot_no[slot_no] = true
+
+	var close_tween = create_tween()
+	close_tween.tween_property(root, "scale", Vector2(0.0, 1.0), 0.08)
+	await close_tween.finished
+
+	if not is_instance_valid(root):
+		return
+
+	monster_is_face_down_by_slot_no[slot_no] = true
+	_apply_monster_back_face(slot_no)
+
+	var open_tween = create_tween()
+	open_tween.tween_property(root, "scale", Vector2(1.0, 1.0), 0.08)
+	await open_tween.finished
+
+	monster_is_flipping_by_slot_no[slot_no] = false
+
+func _flip_monster_to_front(slot_no: int) -> void:
+	if bool(monster_is_flipping_by_slot_no.get(slot_no, false)):
+		return
+	if not bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
+		return
+	if not monster_root_by_slot_no.has(slot_no):
+		return
+
+	var root: Control = monster_root_by_slot_no.get(slot_no, null) as Control
+	if root == null:
+		return
+
+	monster_is_flipping_by_slot_no[slot_no] = true
+
+	var close_tween = create_tween()
+	close_tween.tween_property(root, "scale", Vector2(0.0, 1.0), 0.08)
+	await close_tween.finished
+
+	if not is_instance_valid(root):
+		return
+
+	monster_is_face_down_by_slot_no[slot_no] = false
+	monster_hp_by_slot_no[slot_no] = monster_start_hp
+	_apply_monster_front_face(slot_no)
 	_update_monster_visual(slot_no)
+
+	var open_tween = create_tween()
+	open_tween.tween_property(root, "scale", Vector2(1.0, 1.0), 0.08)
+	await open_tween.finished
+
+	monster_is_flipping_by_slot_no[slot_no] = false
+
+func _flip_face_down_monsters_to_front_left_to_right() -> void:
+	for slot_no in range(1, 8):
+		if not monster_is_face_down_by_slot_no.has(slot_no):
+			continue
+		if not bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
+			continue
+
+		await _flip_monster_to_front(slot_no)
+		await get_tree().create_timer(0.06).timeout
 	
 	
 
