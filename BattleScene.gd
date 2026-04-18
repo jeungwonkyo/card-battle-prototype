@@ -3,6 +3,7 @@ extends Node2D
 const TEST_CARD_SCENE = preload("res://test_card.tscn")
 const CardStateScript = preload("res://CardState.gd")
 const MonsterActionSystemScript = preload("res://MonsterActionSystem.gd")
+const CardStatSystemScript = preload("res://CardStatSystem.gd")
 
 @onready var player_field_layer: Control = $Layer1_PlayerField
 @onready var deck_body: PileBody = $Layer1_PlayerField/Deck
@@ -20,7 +21,7 @@ var grave_cards: Array = []
 var next_instance_id: int = 1
 
 # 런 중 바뀔 수 있는 전투 값
-var default_card_power: int = 2
+var default_card_level: int = 2
 var strike_combo_multiplier: int = 3
 var harmony_combo_multiplier: int = 2
 var monster_start_hp: int = 20
@@ -28,11 +29,6 @@ var monster_start_hp: int = 20
 # 테스트 중 여기 숫자만 바꾸면 바로 반영됨
 var field_move_tp_cost: int = 2
 var pile_draw_tp_cost: int = 2
-
-# 카드별 현재 위력
-# key = instance_id
-# value = 현재 카드 위력
-var card_power_by_instance_id: Dictionary = {}
 
 var is_opening_deal_in_progress: bool = false
 var is_refill_draw_in_progress: bool = false
@@ -62,6 +58,7 @@ var combo_drag_preview_card_target_slot_by_id: Dictionary = {}
 var final_objective_combo_drag_highlighted: bool = false
 
 var monster_action_system: MonsterActionSystem = null
+var card_stat_system: CardStatSystem = null
 var is_combo_attack_in_progress: bool = false
 
 func _ready() -> void:
@@ -69,6 +66,7 @@ func _ready() -> void:
 	_connect_pile_signals()
 	_connect_ui_signals()
 	_bind_final_objective()
+	_setup_card_stat_system()
 	_setup_monster_action_system()
 	_build_start_deck()
 	_create_pile_popup()
@@ -78,6 +76,18 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await _deal_opening_player_field()
 	refresh_player_combos()
+
+func _setup_card_stat_system() -> void:
+	if card_stat_system != null:
+		return
+
+	card_stat_system = CardStatSystemScript.new() as CardStatSystem
+	if card_stat_system == null:
+		print("카드 스탯 시스템 생성 실패")
+		return
+
+	card_stat_system.setup(strike_combo_multiplier, harmony_combo_multiplier)
+	print("카드 스탯 시스템 연결 완료")
 
 func _setup_monster_action_system() -> void:
 	if monster_action_system != null and is_instance_valid(monster_action_system):
@@ -304,7 +314,6 @@ func _on_end_turn_button_pressed() -> void:
 func _build_start_deck() -> void:
 	deck_cards.clear()
 	grave_cards.clear()
-	card_power_by_instance_id.clear()
 	next_instance_id = 1
 
 	var color_names: Array[String] = ["빨강", "파랑", "초록", "노랑"]
@@ -332,41 +341,173 @@ func _create_card_state(data_id: int, combo_id: int, card_name: String, owner_si
 	new_card.combo_id = combo_id
 	new_card.card_name = card_name
 	new_card.owner_side = owner_side
-
-	card_power_by_instance_id[new_card.instance_id] = default_card_power
+	new_card.base_level = default_card_level
+	new_card.temp_level_delta = 0
 
 	next_instance_id += 1
 	return new_card
 
-func set_card_power(instance_id: int, new_power: int) -> void:
-	card_power_by_instance_id[instance_id] = new_power
-	print("카드 위력 변경 / instance_id:", instance_id, "/ new_power:", new_power)
+func set_card_base_level(instance_id: int, new_level: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 기본 레벨 변경 실패 / instance_id:", instance_id)
+		return
+
+	card_state.set_base_level(new_level)
+	_refresh_card_state_visuals(instance_id)
+	refresh_player_combos()
+	print("카드 기본 레벨 변경 / instance_id:", instance_id, "/ base_level:", card_state.base_level, "/ current_level:", card_state.get_current_level())
+
+func add_card_base_level(instance_id: int, delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 기본 레벨 가산 실패 / instance_id:", instance_id)
+		return
+
+	card_state.add_base_level(delta)
+	_refresh_card_state_visuals(instance_id)
+	refresh_player_combos()
+	print("카드 기본 레벨 가산 / instance_id:", instance_id, "/ delta:", delta, "/ base_level:", card_state.base_level, "/ current_level:", card_state.get_current_level())
+
+func set_card_temp_level_delta(instance_id: int, new_delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 임시 레벨 변경 실패 / instance_id:", instance_id)
+		return
+
+	card_state.set_temp_level_delta(new_delta)
+	_refresh_card_state_visuals(instance_id)
+	refresh_player_combos()
+	print("카드 임시 레벨 변경 / instance_id:", instance_id, "/ temp_level_delta:", card_state.temp_level_delta, "/ current_level:", card_state.get_current_level())
+
+func add_card_temp_level_delta(instance_id: int, delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 임시 레벨 가산 실패 / instance_id:", instance_id)
+		return
+
+	card_state.add_temp_level_delta(delta)
+	_refresh_card_state_visuals(instance_id)
+	refresh_player_combos()
+	print("카드 임시 레벨 가산 / instance_id:", instance_id, "/ delta:", delta, "/ temp_level_delta:", card_state.temp_level_delta, "/ current_level:", card_state.get_current_level())
+
+func clear_card_temp_level_delta(instance_id: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 임시 레벨 초기화 실패 / instance_id:", instance_id)
+		return
+
+	card_state.clear_temp_level_delta()
+	_refresh_card_state_visuals(instance_id)
+	refresh_player_combos()
+	print("카드 임시 레벨 초기화 / instance_id:", instance_id, "/ current_level:", card_state.get_current_level())
+func _find_card_state_by_instance_id(instance_id: int) -> CardState:
+	for card_state_variant in deck_cards:
+		var deck_card_state: CardState = card_state_variant as CardState
+		if deck_card_state == null:
+			continue
+		if int(deck_card_state.instance_id) == instance_id:
+			return deck_card_state
+
+	for card_state_variant in grave_cards:
+		var grave_card_state: CardState = card_state_variant as CardState
+		if grave_card_state == null:
+			continue
+		if int(grave_card_state.instance_id) == instance_id:
+			return grave_card_state
+
+	var all_test_cards: Array = []
+	_collect_test_cards_recursive(self, all_test_cards)
+
+	for card_variant in all_test_cards:
+		var test_card: TestCard = card_variant as TestCard
+		if test_card == null:
+			continue
+		if test_card.card_state == null:
+			continue
+		if int(test_card.card_state.instance_id) == instance_id:
+			return test_card.card_state as CardState
+
+	return null
+
+func _refresh_card_state_visuals(instance_id: int) -> void:
+	var all_test_cards: Array = []
+	_collect_test_cards_recursive(self, all_test_cards)
+
+	for card_variant in all_test_cards:
+		var test_card: TestCard = card_variant as TestCard
+		if test_card == null:
+			continue
+		if test_card.card_state == null:
+			continue
+		if int(test_card.card_state.instance_id) != instance_id:
+			continue
+
+		if test_card.has_method("refresh_from_card_state"):
+			test_card.refresh_from_card_state()
+
+func _collect_test_cards_recursive(root_node: Node, result: Array) -> void:
+	for child in root_node.get_children():
+		if child is TestCard:
+			result.append(child)
+
+		_collect_test_cards_recursive(child, result)
 
 func set_combo_multiplier(combo_type: String, new_multiplier: int) -> void:
 	if combo_type == "strike":
 		strike_combo_multiplier = new_multiplier
-		print("스트라이크 배수 변경:", strike_combo_multiplier)
-		return
-
-	if combo_type == "harmony":
+	elif combo_type == "harmony":
 		harmony_combo_multiplier = new_multiplier
-		print("하모니 배수 변경:", harmony_combo_multiplier)
+	else:
 		return
 
-func _get_card_power_from_card(card: TestCard) -> int:
+	if card_stat_system != null:
+		card_stat_system.set_combo_multiplier(combo_type, new_multiplier)
+
+	refresh_player_combos()
+	print("조합 배수 변경 / 타입:", combo_type, "/ 값:", _get_combo_multiplier(combo_type))
+
+func _get_card_level_from_card(card: TestCard) -> int:
 	if card == null:
-		return default_card_power
+		return default_card_level
 
 	if card.card_state == null:
-		return default_card_power
+		return default_card_level
 
-	var instance_id: int = int(card.card_state.instance_id)
-	if card_power_by_instance_id.has(instance_id):
-		return int(card_power_by_instance_id[instance_id])
+	if card_stat_system == null:
+		return int(card.card_state.get_current_level())
 
-	return default_card_power
+	return card_stat_system.get_current_level(card.card_state)
+
+func _calculate_final_power_from_card_and_multiplier(card: TestCard, combo_multiplier: int) -> int:
+	if card == null:
+		return 0
+
+	if card.card_state == null:
+		return max(0, default_card_level * max(0, combo_multiplier))
+
+	if card_stat_system == null:
+		var fallback_level: int = _get_card_level_from_card(card)
+		return max(0, fallback_level * max(0, combo_multiplier))
+
+	return card_stat_system.calculate_final_power_from_multiplier(card.card_state, "", combo_multiplier)
+
+func _calculate_final_power_from_card_and_combo_type(card: TestCard, combo_type: String) -> int:
+	if card == null:
+		return 0
+
+	if card.card_state == null:
+		return max(0, default_card_level * max(0, _get_combo_multiplier(combo_type)))
+
+	if card_stat_system == null:
+		return _calculate_final_power_from_card_and_multiplier(card, _get_combo_multiplier(combo_type))
+
+	return card_stat_system.calculate_final_power(card.card_state, combo_type)
 
 func _get_combo_multiplier(combo_type: String) -> int:
+	if card_stat_system != null:
+		return card_stat_system.get_combo_multiplier(combo_type)
+
 	if combo_type == "strike":
 		return strike_combo_multiplier
 
@@ -715,6 +856,7 @@ func clear_selected_field_card() -> void:
 func refresh_player_combos() -> void:
 	player_combos.clear()
 	_clear_combo_overlays()
+	_clear_all_player_card_final_power_displays()
 
 	var player_slots: Array = _get_all_player_slots()
 	var used_slot_nos: Dictionary = {}
@@ -749,10 +891,14 @@ func refresh_player_combos() -> void:
 		else:
 			continue
 
+		var combo_multiplier: int = _get_combo_multiplier(combo_type)
+		var combo_cards: Array = [slot_a.card, slot_b.card, slot_c.card]
+
 		var combo_data: Dictionary = {
 			"combo_type": combo_type,
+			"combo_multiplier": combo_multiplier,
 			"slot_nos": [slot_a.slot_no, slot_b.slot_no, slot_c.slot_no],
-			"cards": [slot_a.card, slot_b.card, slot_c.card],
+			"cards": combo_cards,
 			"leader_card": null
 		}
 
@@ -762,9 +908,40 @@ func refresh_player_combos() -> void:
 		used_slot_nos[slot_b.slot_no] = true
 		used_slot_nos[slot_c.slot_no] = true
 
+		_apply_combo_final_power_displays(combo_cards, combo_type)
 		_create_combo_overlay(slot_a, slot_b, slot_c, combo_type)
 
 		print("조합 발견 / 타입:", combo_type, "/ 슬롯:", [slot_a.slot_no, slot_b.slot_no, slot_c.slot_no])
+
+func _clear_all_player_card_final_power_displays() -> void:
+	for slot_variant in _get_all_player_slots():
+		var player_slot: FieldSlot = slot_variant as FieldSlot
+		if player_slot == null:
+			continue
+		if player_slot.card == null:
+			continue
+
+		var field_card: TestCard = player_slot.card as TestCard
+		if field_card == null:
+			continue
+		if not is_instance_valid(field_card):
+			continue
+
+		if field_card.has_method("clear_final_power_display"):
+			field_card.clear_final_power_display()
+
+func _apply_combo_final_power_displays(combo_cards: Array, combo_type: String) -> void:
+	for combo_card_variant in combo_cards:
+		var combo_card: TestCard = combo_card_variant as TestCard
+		if combo_card == null:
+			continue
+		if not is_instance_valid(combo_card):
+			continue
+
+		var final_power: int = _calculate_final_power_from_card_and_combo_type(combo_card, combo_type)
+
+		if combo_card.has_method("set_final_power_display"):
+			combo_card.set_final_power_display(final_power)
 
 func get_combo_data_for_card(card: TestCard) -> Dictionary:
 	if card == null:
@@ -840,7 +1017,7 @@ func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vect
 	_clear_combo_overlays()
 
 	is_combo_attack_in_progress = true
-	_play_combo_attack_sequence(combo_multiplier, attack_plan, leader_card)
+	_play_combo_attack_sequence(combo_type, attack_plan, leader_card)
 
 	return true
 
@@ -853,7 +1030,7 @@ func _get_combo_drag_highlighted_monster_slot() -> FieldSlot:
 
 	return _get_monster_slot(combo_drag_highlighted_monster_slot_no)
 
-func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary, leader_card: TestCard) -> void:
+func _play_combo_attack_sequence(combo_type: String, attack_plan: Dictionary, leader_card: TestCard) -> void:
 	var removed_card_instance_ids: Dictionary = {}
 	var detached_cards_to_free: Array = []
 	var preview_owner: TestCard = leader_card
@@ -878,6 +1055,11 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 		if is_inside_tree():
 			await get_tree().create_timer(0.3).timeout
 
+		if attack_order_index == 1:
+			if preview_owner != null and is_instance_valid(preview_owner):
+				if preview_owner.has_method("hide_combo_drag_preview_overlay"):
+					preview_owner.hide_combo_drag_preview_overlay()
+
 		if typeof(attack_entry_variant) != TYPE_DICTIONARY:
 			continue
 
@@ -899,9 +1081,8 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 				leader_target_slot_no,
 				overlap_priority_slot_nos
 			)
-
-		var card_power: int = _get_card_power_from_card(attack_card)
-		var hit_damage: int = card_power * combo_multiplier
+			
+		var hit_damage: int = _calculate_final_power_from_card_and_combo_type(attack_card, combo_type)
 
 		if is_final_objective_target:
 			if preview_owner != null and is_instance_valid(preview_owner):
@@ -932,6 +1113,9 @@ func _play_combo_attack_sequence(combo_multiplier: int, attack_plan: Dictionary,
 			await _damage_monster(target_slot_no, hit_damage)
 		elif not _has_alive_combo_target_slots(overlap_priority_slot_nos) and _can_hit_final_objective():
 			if preview_owner != null and is_instance_valid(preview_owner):
+				if preview_owner.has_method("play_combo_dash_hit_preview_to_final_objective"):
+					await preview_owner.play_combo_dash_hit_preview_to_final_objective(attack_card)
+
 				if preview_owner.has_method("play_combo_contact_hit_preview"):
 					await preview_owner.play_combo_contact_hit_preview(attack_card)
 
@@ -1214,7 +1398,7 @@ func _setup_test_monsters() -> void:
 	monster_is_face_down_by_slot_no.clear()
 	monster_is_flipping_by_slot_no.clear()
 
-	var monster_slot_nos: Array[int] = [3, 4, 6]
+	var monster_slot_nos: Array[int] = [2,  6]
 
 	for slot_no in monster_slot_nos:
 		monster_hp_by_slot_no[slot_no] = monster_start_hp
@@ -1223,7 +1407,7 @@ func _setup_test_monsters() -> void:
 		_ensure_monster_visual(slot_no)
 		_update_monster_visual(slot_no)
 
-	print("테스트 몬스터 생성 완료 / 슬롯: 3, 4, 6 / HP:", monster_start_hp)
+	print("테스트 몬스터 생성 완료 / 슬롯: 2, 6 / HP:", monster_start_hp)
 
 func _ensure_monster_visual(slot_no: int) -> void:
 	var slot: FieldSlot = _get_monster_slot(slot_no)

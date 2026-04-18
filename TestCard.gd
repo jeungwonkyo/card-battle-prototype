@@ -26,9 +26,24 @@ var combo_drag_preview: Panel = null
 var combo_drag_preview_cards: Array = []
 var combo_drag_preview_outline: Panel = null
 var combo_drag_preview_label: Label = null
+var current_final_power_display: int = -1
 
 # 위쪽 드래그 시작 최소 거리
+# 위쪽 드래그 시작 최소 거리
 const COMBO_DRAG_START_Y_DISTANCE: float = 18.0
+
+# 카드 좌측 상단 레벨 표시 스타일
+const CARD_LEVEL_LABEL_POSITION: Vector2 = Vector2(1, -4)
+const CARD_LEVEL_LABEL_SIZE: Vector2 = Vector2(40, 24)
+const CARD_LEVEL_LABEL_FONT_SIZE: int = 24
+const CARD_LEVEL_LABEL_COLOR: Color = Color(0, 0, 0, 1)
+
+# 카드 우측 상단 최종위력 표시 스타일
+const CARD_FINAL_POWER_LABEL_OFFSET_X: float = 41.0
+const CARD_FINAL_POWER_LABEL_POSITION_Y: float = -4.0
+const CARD_FINAL_POWER_LABEL_SIZE: Vector2 = Vector2(40, 24)
+const CARD_FINAL_POWER_LABEL_FONT_SIZE: int = 24
+const CARD_FINAL_POWER_LABEL_COLOR: Color = Color(0, 0, 0, 1)
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -85,10 +100,17 @@ func setup_from_card_state(new_card_state) -> void:
 	card_side = new_card_state.owner_side
 	card_name = _make_card_name_from_state(new_card_state)
 
-	_update_card_labels()
+	refresh_from_card_state()
 
 	if is_face_up:
 		_show_front_face()
+
+func refresh_from_card_state() -> void:
+	if card_state != null:
+		card_side = card_state.owner_side
+		card_name = _make_card_name_from_state(card_state)
+
+	_update_card_labels()
 
 func set_current_slot(slot: FieldSlot) -> void:
 	current_slot = slot
@@ -538,7 +560,6 @@ func _set_combo_drag_source_cards_visible(visible_state: bool) -> void:
 			continue
 
 		combo_card.visible = visible_state
-
 func _create_combo_drag_card_preview(source_card: TestCard) -> Control:
 	if source_card == null:
 		return null
@@ -561,16 +582,27 @@ func _create_combo_drag_card_preview(source_card: TestCard) -> Control:
 	preview_root.add_child(bg)
 
 	if source_card.is_face_up:
-		var name_label: Label = Label.new()
-		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		name_label.position = Vector2(0, 8)
-		name_label.size = Vector2(source_card.size.x, 24)
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		name_label.add_theme_font_size_override("font_size", 14)
-		name_label.add_theme_color_override("font_color", Color(0, 0, 0, 1))
-		name_label.text = source_card.card_name
-		preview_root.add_child(name_label)
+		var level_label: Label = Label.new()
+		level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		level_label.position = CARD_LEVEL_LABEL_POSITION
+		level_label.size = CARD_LEVEL_LABEL_SIZE
+		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		level_label.add_theme_font_size_override("font_size", CARD_LEVEL_LABEL_FONT_SIZE)
+		level_label.add_theme_color_override("font_color", CARD_LEVEL_LABEL_COLOR)
+		level_label.text = source_card._get_current_level_text()
+		preview_root.add_child(level_label)
+
+		var final_power_label: Label = Label.new()
+		final_power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		final_power_label.position = Vector2(source_card.size.x - CARD_FINAL_POWER_LABEL_OFFSET_X, CARD_FINAL_POWER_LABEL_POSITION_Y)
+		final_power_label.size = CARD_FINAL_POWER_LABEL_SIZE
+		final_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		final_power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		final_power_label.add_theme_font_size_override("font_size", CARD_FINAL_POWER_LABEL_FONT_SIZE)
+		final_power_label.add_theme_color_override("font_color", CARD_FINAL_POWER_LABEL_COLOR)
+		final_power_label.text = source_card._get_final_power_text()
+		preview_root.add_child(final_power_label)
 
 		var number_label: Label = Label.new()
 		number_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -828,7 +860,6 @@ func _play_combo_dash_hit_preview_to_x(source_card: TestCard, target_x: float) -
 		var tree := combo_drag_preview.get_tree()
 		if tree != null:
 			await tree.create_timer(0.02).timeout
-
 func play_combo_dash_hit_preview(source_card: TestCard, target_slot_no: int) -> void:
 	if target_slot_no <= 0:
 		return
@@ -881,9 +912,50 @@ func play_combo_dash_hit_preview_to_final_objective(source_card: TestCard) -> vo
 	if not is_instance_valid(preview_card):
 		return
 
-	var target_x: float = target_rect.position.x + ((target_rect.size.x - preview_card.size.x) * 0.5)
-	await _play_combo_dash_hit_preview_to_x(source_card, target_x)
+	var target_pos: Vector2 = Vector2(
+		target_rect.position.x + ((target_rect.size.x - preview_card.size.x) * 0.5),
+		target_rect.position.y + ((target_rect.size.y - preview_card.size.y) * 0.5)
+	)
 
+	await _play_combo_dash_hit_preview_to_global_point(source_card, target_pos)
+
+func _play_combo_dash_hit_preview_to_global_point(source_card: TestCard, target_pos: Vector2) -> void:
+	if combo_drag_preview == null:
+		return
+	if not is_instance_valid(combo_drag_preview):
+		return
+
+	var preview_card: Control = _find_combo_drag_preview_card_by_source_card(source_card)
+	if preview_card == null:
+		return
+	if not is_instance_valid(preview_card):
+		return
+
+	var start_pos: Vector2 = preview_card.global_position
+	if start_pos.distance_to(target_pos) < 1.0:
+		return
+
+	var step_count: int = 7
+	var arc_height: float = 36.0
+
+	for step in range(1, step_count + 1):
+		if combo_drag_preview == null:
+			return
+		if not is_instance_valid(combo_drag_preview):
+			return
+		if not is_instance_valid(preview_card):
+			return
+
+		var t: float = float(step) / float(step_count)
+		var next_x: float = lerpf(start_pos.x, target_pos.x, t)
+		var next_y: float = lerpf(start_pos.y, target_pos.y, t) - (sin(t * PI) * arc_height)
+
+		preview_card.global_position = Vector2(next_x, next_y)
+		_refresh_combo_drag_preview_layout_from_current_positions()
+
+		var tree := combo_drag_preview.get_tree()
+		if tree != null:
+			await tree.create_timer(0.02).timeout
 func play_combo_contact_hit_preview(source_card: TestCard) -> void:
 	var preview_card: Control = _find_combo_drag_preview_card_by_source_card(source_card)
 	if preview_card == null:
@@ -940,6 +1012,13 @@ func consume_combo_drag_preview_card(source_card: TestCard) -> void:
 
 func finish_combo_drag_attack_preview() -> void:
 	_destroy_combo_drag_preview()
+
+func hide_combo_drag_preview_overlay() -> void:
+	if combo_drag_preview_outline != null:
+		combo_drag_preview_outline.visible = false
+
+	if combo_drag_preview_label != null:
+		combo_drag_preview_label.visible = false
 
 func _refresh_combo_drag_preview_layout_after_consume() -> void:
 	if combo_drag_preview == null:
@@ -1000,7 +1079,13 @@ func _show_front_face() -> void:
 	_update_card_labels()
 
 	if has_node("CardNameLabel"):
-		$CardNameLabel.visible = true
+		$CardNameLabel.visible = false
+
+	if has_node("CardLevelLabel"):
+		$CardLevelLabel.visible = true
+
+	if has_node("CardFinalPowerLabel"):
+		$CardFinalPowerLabel.visible = true
 
 	if has_node("CardNumberLabel"):
 		$CardNumberLabel.visible = true
@@ -1013,6 +1098,12 @@ func _show_back_face() -> void:
 
 	if has_node("CardNameLabel"):
 		$CardNameLabel.visible = false
+
+	if has_node("CardLevelLabel"):
+		$CardLevelLabel.visible = false
+
+	if has_node("CardFinalPowerLabel"):
+		$CardFinalPowerLabel.visible = false
 
 	if has_node("CardNumberLabel"):
 		$CardNumberLabel.visible = false
@@ -1027,17 +1118,36 @@ func _flip_to_front() -> void:
 	tween.tween_property(self, "scale", Vector2(1.0, 1.0), 0.08)
 
 func _ensure_card_labels() -> void:
-	if not has_node("CardNameLabel"):
-		var name_label := Label.new()
-		name_label.name = "CardNameLabel"
-		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		name_label.position = Vector2(0, 8)
-		name_label.size = Vector2(size.x, 24)
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		name_label.add_theme_font_size_override("font_size", 14)
-		name_label.add_theme_color_override("font_color", Color(0, 0, 0, 1))
-		add_child(name_label)
+	if has_node("CardNameLabel"):
+		$CardNameLabel.visible = false
+
+	if not has_node("CardLevelLabel"):
+		var level_label := Label.new()
+		level_label.name = "CardLevelLabel"
+		level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		add_child(level_label)
+
+	if has_node("CardLevelLabel"):
+		$CardLevelLabel.position = CARD_LEVEL_LABEL_POSITION
+		$CardLevelLabel.size = CARD_LEVEL_LABEL_SIZE
+		$CardLevelLabel.add_theme_font_size_override("font_size", CARD_LEVEL_LABEL_FONT_SIZE)
+		$CardLevelLabel.add_theme_color_override("font_color", CARD_LEVEL_LABEL_COLOR)
+
+	if not has_node("CardFinalPowerLabel"):
+		var final_power_label := Label.new()
+		final_power_label.name = "CardFinalPowerLabel"
+		final_power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		final_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		final_power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		add_child(final_power_label)
+
+	if has_node("CardFinalPowerLabel"):
+		$CardFinalPowerLabel.position = Vector2(size.x - CARD_FINAL_POWER_LABEL_OFFSET_X, CARD_FINAL_POWER_LABEL_POSITION_Y)
+		$CardFinalPowerLabel.size = CARD_FINAL_POWER_LABEL_SIZE
+		$CardFinalPowerLabel.add_theme_font_size_override("font_size", CARD_FINAL_POWER_LABEL_FONT_SIZE)
+		$CardFinalPowerLabel.add_theme_color_override("font_color", CARD_FINAL_POWER_LABEL_COLOR)
 
 	if not has_node("CardNumberLabel"):
 		var number_label := Label.new()
@@ -1075,7 +1185,13 @@ func _ensure_selection_outline() -> void:
 
 func _update_card_labels() -> void:
 	if has_node("CardNameLabel"):
-		$CardNameLabel.text = card_name
+		$CardNameLabel.visible = false
+
+	if has_node("CardLevelLabel"):
+		$CardLevelLabel.text = _get_current_level_text()
+
+	if has_node("CardFinalPowerLabel"):
+		$CardFinalPowerLabel.text = _get_final_power_text()
 
 	if has_node("CardNumberLabel"):
 		$CardNumberLabel.text = _get_number_text_from_card_name()
@@ -1114,6 +1230,26 @@ func _get_number_text_from_card_name() -> String:
 
 	return parts[1]
 
+func _get_current_level_text() -> String:
+	if card_state == null:
+		return ""
+
+	return str(card_state.get_current_level())
+
+func _get_final_power_text() -> String:
+	if current_final_power_display < 0:
+		return ""
+
+	return str(current_final_power_display)
+
+func set_final_power_display(value: int) -> void:
+	current_final_power_display = max(0, value)
+	_update_card_labels()
+
+func clear_final_power_display() -> void:
+	current_final_power_display = -1
+	_update_card_labels()
+
 func _get_front_color_by_combo_id() -> Color:
 	if card_state == null:
 		return Color(0.95, 0.85, 0.35, 1.0)
@@ -1135,6 +1271,17 @@ func set_selected_visual(is_selected: bool) -> void:
 		return
 
 	$SelectionOutline.visible = is_selected
+
+func is_active_combo_drag_leader() -> bool:
+	if not is_combo_dragging:
+		return false
+	if combo_drag_preview == null:
+		return false
+	if not is_instance_valid(combo_drag_preview):
+		return false
+
+	var leader_card: TestCard = combo_drag_data.get("leader_card", null) as TestCard
+	return leader_card == self
 
 func _request_combo_refresh() -> void:
 	var battle_scene = get_tree().current_scene

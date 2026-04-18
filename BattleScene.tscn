@@ -183,6 +183,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="P_SlotStation_Ground" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation" unique_id=1922190740]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -356,6 +357,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="P_SlotStation_Ground" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation" unique_id=1732806683]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
