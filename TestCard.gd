@@ -37,6 +37,8 @@ const CARD_LEVEL_LABEL_POSITION: Vector2 = Vector2(1, -4)
 const CARD_LEVEL_LABEL_SIZE: Vector2 = Vector2(40, 24)
 const CARD_LEVEL_LABEL_FONT_SIZE: int = 24
 const CARD_LEVEL_LABEL_COLOR: Color = Color(0, 0, 0, 1)
+const CARD_LEVEL_LABEL_COLOR_UP: Color = Color(1.0, 0.85, 0.1, 1.0)
+const CARD_LEVEL_LABEL_COLOR_DOWN: Color = Color(1.0, 0.25, 0.25, 1.0)
 
 # 카드 우측 상단 최종위력 표시 스타일
 const CARD_FINAL_POWER_LABEL_OFFSET_X: float = 41.0
@@ -583,28 +585,31 @@ func _create_combo_drag_card_preview(source_card: TestCard) -> Control:
 
 	if source_card.is_face_up:
 		var level_label: Label = Label.new()
+		level_label.name = "PreviewLevelLabel"
 		level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		level_label.position = CARD_LEVEL_LABEL_POSITION
 		level_label.size = CARD_LEVEL_LABEL_SIZE
 		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		level_label.add_theme_font_size_override("font_size", CARD_LEVEL_LABEL_FONT_SIZE)
-		level_label.add_theme_color_override("font_color", CARD_LEVEL_LABEL_COLOR)
+		level_label.add_theme_color_override("font_color", source_card._get_current_level_color())
 		level_label.text = source_card._get_current_level_text()
 		preview_root.add_child(level_label)
 
 		var final_power_label: Label = Label.new()
+		final_power_label.name = "PreviewFinalPowerLabel"
 		final_power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		final_power_label.position = Vector2(source_card.size.x - CARD_FINAL_POWER_LABEL_OFFSET_X, CARD_FINAL_POWER_LABEL_POSITION_Y)
 		final_power_label.size = CARD_FINAL_POWER_LABEL_SIZE
 		final_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		final_power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		final_power_label.add_theme_font_size_override("font_size", CARD_FINAL_POWER_LABEL_FONT_SIZE)
-		final_power_label.add_theme_color_override("font_color", CARD_FINAL_POWER_LABEL_COLOR)
+		final_power_label.add_theme_color_override("font_color", source_card._get_current_level_color())
 		final_power_label.text = source_card._get_final_power_text()
 		preview_root.add_child(final_power_label)
 
 		var number_label: Label = Label.new()
+		number_label.name = "PreviewNumberLabel"
 		number_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		number_label.position = Vector2(0, 60)
 		number_label.size = Vector2(source_card.size.x, 90)
@@ -824,6 +829,43 @@ func _find_combo_drag_preview_card_by_source_card(source_card: TestCard) -> Cont
 			return preview_card
 
 	return null
+
+func refresh_combo_drag_preview_all_card_labels() -> void:
+	if combo_drag_preview == null:
+		return
+	if combo_drag_preview_cards.is_empty():
+		return
+
+	for preview_card_variant in combo_drag_preview_cards:
+		var preview_card: Control = preview_card_variant as Control
+		if preview_card == null:
+			continue
+		if not is_instance_valid(preview_card):
+			continue
+
+		var source_card_id: int = int(preview_card.get_meta("source_card_id", 0))
+		if source_card_id <= 0:
+			continue
+
+		var source_card: TestCard = instance_from_id(source_card_id) as TestCard
+		if source_card == null:
+			continue
+		if not is_instance_valid(source_card):
+			continue
+
+		var level_label: Label = preview_card.get_node_or_null("PreviewLevelLabel") as Label
+		if level_label != null:
+			level_label.text = source_card._get_current_level_text()
+			level_label.add_theme_color_override("font_color", source_card._get_current_level_color())
+
+		var final_power_label: Label = preview_card.get_node_or_null("PreviewFinalPowerLabel") as Label
+		if final_power_label != null:
+			final_power_label.text = source_card._get_final_power_text()
+			final_power_label.add_theme_color_override("font_color", source_card._get_current_level_color())
+			
+		var number_label: Label = preview_card.get_node_or_null("PreviewNumberLabel") as Label
+		if number_label != null:
+			number_label.text = source_card._get_number_text_from_card_name()
 
 func _play_combo_dash_hit_preview_to_x(source_card: TestCard, target_x: float) -> void:
 	var preview_card: Control = _find_combo_drag_preview_card_by_source_card(source_card)
@@ -1189,9 +1231,11 @@ func _update_card_labels() -> void:
 
 	if has_node("CardLevelLabel"):
 		$CardLevelLabel.text = _get_current_level_text()
+		$CardLevelLabel.add_theme_color_override("font_color", _get_current_level_color())
 
 	if has_node("CardFinalPowerLabel"):
 		$CardFinalPowerLabel.text = _get_final_power_text()
+		$CardFinalPowerLabel.add_theme_color_override("font_color", _get_current_level_color())
 
 	if has_node("CardNumberLabel"):
 		$CardNumberLabel.text = _get_number_text_from_card_name()
@@ -1235,6 +1279,21 @@ func _get_current_level_text() -> String:
 		return ""
 
 	return str(card_state.get_current_level())
+
+func _get_current_level_color() -> Color:
+	if card_state == null:
+		return CARD_LEVEL_LABEL_COLOR
+
+	var current_level: int = int(card_state.get_current_level())
+	var base_level: int = int(card_state.base_level)
+
+	if current_level > base_level:
+		return CARD_LEVEL_LABEL_COLOR_UP
+
+	if current_level < base_level:
+		return CARD_LEVEL_LABEL_COLOR_DOWN
+
+	return CARD_LEVEL_LABEL_COLOR
 
 func _get_final_power_text() -> String:
 	if current_final_power_display < 0:

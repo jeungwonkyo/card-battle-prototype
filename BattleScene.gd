@@ -4,6 +4,10 @@ const TEST_CARD_SCENE = preload("res://test_card.tscn")
 const CardStateScript = preload("res://CardState.gd")
 const MonsterActionSystemScript = preload("res://MonsterActionSystem.gd")
 const CardStatSystemScript = preload("res://CardStatSystem.gd")
+const CardLevelModifierSystemScript = preload("res://CardLevelModifierSystem.gd")
+const CardBuffDebuffSystemScript = preload("res://CardBuffDebuffSystem.gd")
+const CardDefinitionScript = preload("res://CardDefinition.gd")
+const CardEffectSystemScript = preload("res://CardEffectSystem.gd")
 
 @onready var player_field_layer: Control = $Layer1_PlayerField
 @onready var deck_body: PileBody = $Layer1_PlayerField/Deck
@@ -59,6 +63,10 @@ var final_objective_combo_drag_highlighted: bool = false
 
 var monster_action_system: MonsterActionSystem = null
 var card_stat_system: CardStatSystem = null
+var card_level_modifier_system: CardLevelModifierSystem = null
+var card_buff_debuff_system: CardBuffDebuffSystem = null
+var card_definition: CardDefinition = null
+var card_effect_system: CardEffectSystem = null
 var is_combo_attack_in_progress: bool = false
 
 func _ready() -> void:
@@ -66,6 +74,10 @@ func _ready() -> void:
 	_connect_pile_signals()
 	_connect_ui_signals()
 	_bind_final_objective()
+	_setup_card_level_modifier_system()
+	_setup_card_buff_debuff_system()
+	_setup_card_definition()
+	_setup_card_effect_system()
 	_setup_card_stat_system()
 	_setup_monster_action_system()
 	_build_start_deck()
@@ -76,6 +88,52 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await _deal_opening_player_field()
 	refresh_player_combos()
+
+func _setup_card_level_modifier_system() -> void:
+	if card_level_modifier_system != null:
+		return
+
+	card_level_modifier_system = CardLevelModifierSystemScript.new() as CardLevelModifierSystem
+	if card_level_modifier_system == null:
+		print("카드 레벨 보정 시스템 생성 실패")
+		return
+
+	card_level_modifier_system.setup(default_card_level)
+	print("카드 레벨 보정 시스템 연결 완료")
+
+func _setup_card_buff_debuff_system() -> void:
+	if card_buff_debuff_system != null:
+		return
+
+	card_buff_debuff_system = CardBuffDebuffSystemScript.new() as CardBuffDebuffSystem
+	if card_buff_debuff_system == null:
+		print("카드 버프/디버프 시스템 생성 실패")
+		return
+
+	print("카드 버프/디버프 시스템 연결 완료")
+
+func _setup_card_definition() -> void:
+	if card_definition != null:
+		return
+
+	card_definition = CardDefinitionScript.new() as CardDefinition
+	if card_definition == null:
+		print("카드 정의 시스템 생성 실패")
+		return
+
+	print("카드 정의 시스템 연결 완료")
+
+func _setup_card_effect_system() -> void:
+	if card_effect_system != null:
+		return
+
+	card_effect_system = CardEffectSystemScript.new() as CardEffectSystem
+	if card_effect_system == null:
+		print("카드 효과 시스템 생성 실패")
+		return
+
+	card_effect_system.setup(self, card_definition)
+	print("카드 효과 시스템 연결 완료")
 
 func _setup_card_stat_system() -> void:
 	if card_stat_system != null:
@@ -344,63 +402,431 @@ func _create_card_state(data_id: int, combo_id: int, card_name: String, owner_si
 	new_card.base_level = default_card_level
 	new_card.temp_level_delta = 0
 
+	if card_definition != null:
+		var definition: Dictionary = card_definition.get_definition_by_data_id(data_id)
+		var display_name: String = String(definition.get("display_name", card_name))
+		var definition_id: String = String(definition.get("definition_id", ""))
+
+		if display_name != "":
+			new_card.card_name = display_name
+
+		if definition_id != "":
+			new_card.set_meta("card_definition_id", definition_id)
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.initialize_card_state(new_card, default_card_level)
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.initialize_card_state(new_card)
+
+	_sync_card_state_level_fields(new_card)
+
 	next_instance_id += 1
 	return new_card
 
-func set_card_base_level(instance_id: int, new_level: int) -> void:
-	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+func _sync_card_state_level_fields(card_state: CardState) -> void:
 	if card_state == null:
-		print("카드 기본 레벨 변경 실패 / instance_id:", instance_id)
 		return
 
-	card_state.set_base_level(new_level)
-	_refresh_card_state_visuals(instance_id)
+	var blessing_amount: int = 0
+	var curse_amount: int = 0
+
+	if card_buff_debuff_system != null:
+		blessing_amount = card_buff_debuff_system.get_blessing(card_state)
+		curse_amount = card_buff_debuff_system.get_curse(card_state)
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.sync_legacy_level_fields(card_state, blessing_amount, curse_amount)
+		return
+
+	if "base_level" in card_state and card_state.base_level < default_card_level:
+		card_state.base_level = default_card_level
+
+func get_card_base_level_by_state(card_state: CardState) -> int:
+	if card_state == null:
+		return default_card_level
+
+	if card_level_modifier_system == null:
+		return int(card_state.base_level)
+
+	return card_level_modifier_system.get_base_level(card_state)
+
+func get_card_final_level_by_state(card_state: CardState) -> int:
+	if card_state == null:
+		return default_card_level
+
+	if card_level_modifier_system == null:
+		return int(card_state.get_current_level())
+
+	var blessing_amount: int = 0
+	var curse_amount: int = 0
+
+	if card_buff_debuff_system != null:
+		blessing_amount = card_buff_debuff_system.get_blessing(card_state)
+		curse_amount = card_buff_debuff_system.get_curse(card_state)
+
+	return card_level_modifier_system.get_final_level(card_state, blessing_amount, curse_amount)
+
+func _refresh_card_state_visual_only(card_state: CardState) -> void:
+	if card_state == null:
+		return
+
+	_sync_card_state_level_fields(card_state)
+	_refresh_card_state_visuals(card_state.instance_id)
+
+func _refresh_card_state_after_level_change(card_state: CardState) -> void:
+	if card_state == null:
+		return
+
+	_refresh_card_state_visual_only(card_state)
 	refresh_player_combos()
-	print("카드 기본 레벨 변경 / instance_id:", instance_id, "/ base_level:", card_state.base_level, "/ current_level:", card_state.get_current_level())
+
+func set_card_rank_up(instance_id: int, new_value: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Rank Up 변경 실패 / instance_id:", instance_id)
+		return
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.set_rank_up(card_state, new_value)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Rank Up 변경 / instance_id:", instance_id, "/ Rank Up:", max(0, new_value), "/ final_level:", get_card_final_level_by_state(card_state))
+
+func add_card_rank_up(instance_id: int, delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Rank Up 가산 실패 / instance_id:", instance_id)
+		return
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.add_rank_up(card_state, delta)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Rank Up 가산 / instance_id:", instance_id, "/ delta:", delta, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func set_card_growth(instance_id: int, new_value: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Growth 변경 실패 / instance_id:", instance_id)
+		return
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.set_growth(card_state, new_value)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Growth 변경 / instance_id:", instance_id, "/ Growth:", max(0, new_value), "/ final_level:", get_card_final_level_by_state(card_state))
+
+func add_card_growth(instance_id: int, delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Growth 가산 실패 / instance_id:", instance_id)
+		return
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.add_growth(card_state, delta)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Growth 가산 / instance_id:", instance_id, "/ delta:", delta, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func clear_card_growth(instance_id: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Growth 초기화 실패 / instance_id:", instance_id)
+		return
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.clear_growth(card_state)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Growth 초기화 / instance_id:", instance_id, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func set_card_blessing(instance_id: int, new_value: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Blessing 변경 실패 / instance_id:", instance_id)
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.set_blessing(card_state, new_value)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Blessing 변경 / instance_id:", instance_id, "/ Blessing:", max(0, new_value), "/ final_level:", get_card_final_level_by_state(card_state))
+
+func add_card_blessing(instance_id: int, delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Blessing 가산 실패 / instance_id:", instance_id)
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.add_blessing(card_state, delta)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Blessing 가산 / instance_id:", instance_id, "/ delta:", delta, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func clear_card_blessing(instance_id: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Blessing 초기화 실패 / instance_id:", instance_id)
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.clear_blessing(card_state)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Blessing 초기화 / instance_id:", instance_id, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func set_card_curse(instance_id: int, new_value: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Curse 변경 실패 / instance_id:", instance_id)
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.set_curse(card_state, new_value)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Curse 변경 / instance_id:", instance_id, "/ Curse:", max(0, new_value), "/ final_level:", get_card_final_level_by_state(card_state))
+
+func add_card_curse(instance_id: int, delta: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Curse 가산 실패 / instance_id:", instance_id)
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.add_curse(card_state, delta)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Curse 가산 / instance_id:", instance_id, "/ delta:", delta, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func clear_card_curse(instance_id: int) -> void:
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		print("카드 Curse 초기화 실패 / instance_id:", instance_id)
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.clear_curse(card_state)
+
+	_refresh_card_state_after_level_change(card_state)
+	print("카드 Curse 초기화 / instance_id:", instance_id, "/ final_level:", get_card_final_level_by_state(card_state))
+
+func set_card_base_level(instance_id: int, new_level: int) -> void:
+	var normalized_level: int = max(default_card_level, new_level)
+	var rank_up_value: int = max(0, normalized_level - default_card_level)
+	set_card_rank_up(instance_id, rank_up_value)
 
 func add_card_base_level(instance_id: int, delta: int) -> void:
-	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
-	if card_state == null:
-		print("카드 기본 레벨 가산 실패 / instance_id:", instance_id)
-		return
-
-	card_state.add_base_level(delta)
-	_refresh_card_state_visuals(instance_id)
-	refresh_player_combos()
-	print("카드 기본 레벨 가산 / instance_id:", instance_id, "/ delta:", delta, "/ base_level:", card_state.base_level, "/ current_level:", card_state.get_current_level())
+	add_card_rank_up(instance_id, delta)
 
 func set_card_temp_level_delta(instance_id: int, new_delta: int) -> void:
-	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
-	if card_state == null:
-		print("카드 임시 레벨 변경 실패 / instance_id:", instance_id)
-		return
-
-	card_state.set_temp_level_delta(new_delta)
-	_refresh_card_state_visuals(instance_id)
-	refresh_player_combos()
-	print("카드 임시 레벨 변경 / instance_id:", instance_id, "/ temp_level_delta:", card_state.temp_level_delta, "/ current_level:", card_state.get_current_level())
+	set_card_growth(instance_id, max(0, new_delta))
 
 func add_card_temp_level_delta(instance_id: int, delta: int) -> void:
-	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
-	if card_state == null:
-		print("카드 임시 레벨 가산 실패 / instance_id:", instance_id)
-		return
-
-	card_state.add_temp_level_delta(delta)
-	_refresh_card_state_visuals(instance_id)
-	refresh_player_combos()
-	print("카드 임시 레벨 가산 / instance_id:", instance_id, "/ delta:", delta, "/ temp_level_delta:", card_state.temp_level_delta, "/ current_level:", card_state.get_current_level())
+	add_card_growth(instance_id, delta)
 
 func clear_card_temp_level_delta(instance_id: int) -> void:
-	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
-	if card_state == null:
-		print("카드 임시 레벨 초기화 실패 / instance_id:", instance_id)
+	clear_card_growth(instance_id)
+
+func _consume_card_attack_use_modifiers(card: TestCard) -> void:
+	if card == null:
+		return
+	if card.card_state == null:
 		return
 
-	card_state.clear_temp_level_delta()
-	_refresh_card_state_visuals(instance_id)
+	var card_state: CardState = card.card_state as CardState
+	if card_state == null:
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.consume_attack_use_modifiers(card_state)
+
+	_refresh_card_state_visual_only(card_state)
+
+func clear_all_card_battle_only_modifiers_for_battle_end() -> void:
+	var all_card_states: Array = _get_all_unique_card_states()
+
+	for card_state_variant in all_card_states:
+		var card_state: CardState = card_state_variant as CardState
+		if card_state == null:
+			continue
+
+		if card_level_modifier_system != null:
+			card_level_modifier_system.clear_for_battle_end(card_state)
+
+		if card_buff_debuff_system != null:
+			card_buff_debuff_system.clear_for_battle_end(card_state)
+
+		_refresh_card_state_visual_only(card_state)
+
 	refresh_player_combos()
-	print("카드 임시 레벨 초기화 / instance_id:", instance_id, "/ current_level:", card_state.get_current_level())
+
+func _get_all_unique_card_states() -> Array:
+	var result: Array = []
+	var used_instance_ids: Dictionary = {}
+
+	for card_state_variant in deck_cards:
+		var deck_card_state: CardState = card_state_variant as CardState
+		if deck_card_state == null:
+			continue
+
+		var deck_instance_id: int = int(deck_card_state.instance_id)
+		if used_instance_ids.has(deck_instance_id):
+			continue
+
+		used_instance_ids[deck_instance_id] = true
+		result.append(deck_card_state)
+
+	for card_state_variant in grave_cards:
+		var grave_card_state: CardState = card_state_variant as CardState
+		if grave_card_state == null:
+			continue
+
+		var grave_instance_id: int = int(grave_card_state.instance_id)
+		if used_instance_ids.has(grave_instance_id):
+			continue
+
+		used_instance_ids[grave_instance_id] = true
+		result.append(grave_card_state)
+
+	var all_test_cards: Array = []
+	_collect_test_cards_recursive(self, all_test_cards)
+
+	for card_variant in all_test_cards:
+		var test_card: TestCard = card_variant as TestCard
+		if test_card == null:
+			continue
+		if test_card.card_state == null:
+			continue
+
+		var card_state: CardState = test_card.card_state as CardState
+		if card_state == null:
+			continue
+
+		var instance_id: int = int(card_state.instance_id)
+		if used_instance_ids.has(instance_id):
+			continue
+
+		used_instance_ids[instance_id] = true
+		result.append(card_state)
+
+	return result
+
+func apply_card_blessing_from_effect(instance_id: int, amount: int) -> void:
+	if amount <= 0:
+		return
+
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		return
+
+	if card_buff_debuff_system != null:
+		card_buff_debuff_system.add_blessing(card_state, amount)
+
+	_refresh_card_state_visual_only(card_state)
+	_refresh_active_combo_drag_preview_labels()
+
+func apply_card_growth_from_effect(instance_id: int, amount: int) -> void:
+	if amount <= 0:
+		return
+
+	var card_state: CardState = _find_card_state_by_instance_id(instance_id)
+	if card_state == null:
+		return
+
+	if card_level_modifier_system != null:
+		card_level_modifier_system.add_growth(card_state, amount)
+
+	_refresh_card_state_visual_only(card_state)
+	_refresh_active_combo_drag_preview_labels()
+
+func get_remaining_player_field_cards_excluding_combo_cards(excluded_cards: Array) -> Array:
+	var result: Array = []
+	var excluded_ids: Dictionary = {}
+
+	for excluded_card_variant in excluded_cards:
+		var excluded_card: TestCard = excluded_card_variant as TestCard
+		if excluded_card == null:
+			continue
+		if not is_instance_valid(excluded_card):
+			continue
+
+		excluded_ids[excluded_card.get_instance_id()] = true
+
+	for slot_variant in _get_all_player_slots():
+		var slot: FieldSlot = slot_variant as FieldSlot
+		if slot == null:
+			continue
+		if slot.card == null:
+			continue
+
+		var field_card: TestCard = slot.card as TestCard
+		if field_card == null:
+			continue
+		if not is_instance_valid(field_card):
+			continue
+		if field_card.card_state == null:
+			continue
+		if excluded_ids.has(field_card.get_instance_id()):
+			continue
+
+		result.append(field_card)
+
+	return result
+
+func _refresh_active_combo_drag_preview_labels() -> void:
+	var all_test_cards: Array = []
+	_collect_test_cards_recursive(self, all_test_cards)
+
+	for card_variant in all_test_cards:
+		var test_card: TestCard = card_variant as TestCard
+		if test_card == null:
+			continue
+		if not is_instance_valid(test_card):
+			continue
+
+		if test_card.has_method("is_active_combo_drag_leader") and test_card.is_active_combo_drag_leader():
+			if test_card.has_method("refresh_combo_drag_preview_all_card_labels"):
+				test_card.refresh_combo_drag_preview_all_card_labels()
+			return
+
+func _run_combo_card_effects(timing: String, combo_data: Dictionary, attack_entry: Dictionary) -> void:
+	if card_effect_system == null:
+		return
+
+	card_effect_system.run_combo_card_effects(timing, combo_data, attack_entry)
+
+func refresh_runtime_combo_card_displays(combo_data: Dictionary) -> void:
+	var combo_type: String = String(combo_data.get("combo_type", ""))
+
+	var cards_value = combo_data.get("cards", [])
+	if typeof(cards_value) != TYPE_ARRAY:
+		return
+
+	var combo_cards: Array = cards_value as Array
+
+	for combo_card_variant in combo_cards:
+		var combo_card: TestCard = combo_card_variant as TestCard
+		if combo_card == null:
+			continue
+		if not is_instance_valid(combo_card):
+			continue
+		if combo_card.card_state == null:
+			continue
+
+		_refresh_card_state_visual_only(combo_card.card_state as CardState)
+
+		var final_power: int = _calculate_final_power_from_card_and_combo_type(combo_card, combo_type)
+		if combo_card.has_method("set_final_power_display"):
+			combo_card.set_final_power_display(final_power)
+
+	var leader_card: TestCard = combo_data.get("leader_card", null) as TestCard
+	if leader_card != null and is_instance_valid(leader_card):
+		if leader_card.has_method("refresh_combo_drag_preview_all_card_labels"):
+			leader_card.refresh_combo_drag_preview_all_card_labels()
+
 func _find_card_state_by_instance_id(instance_id: int) -> CardState:
 	for card_state_variant in deck_cards:
 		var deck_card_state: CardState = card_state_variant as CardState
@@ -474,10 +900,7 @@ func _get_card_level_from_card(card: TestCard) -> int:
 	if card.card_state == null:
 		return default_card_level
 
-	if card_stat_system == null:
-		return int(card.card_state.get_current_level())
-
-	return card_stat_system.get_current_level(card.card_state)
+	return get_card_final_level_by_state(card.card_state as CardState)
 
 func _calculate_final_power_from_card_and_multiplier(card: TestCard, combo_multiplier: int) -> int:
 	if card == null:
@@ -899,7 +1322,8 @@ func refresh_player_combos() -> void:
 			"combo_multiplier": combo_multiplier,
 			"slot_nos": [slot_a.slot_no, slot_b.slot_no, slot_c.slot_no],
 			"cards": combo_cards,
-			"leader_card": null
+			"leader_card": null,
+			"card_role_by_instance_id": {}
 		}
 
 		player_combos.append(combo_data)
@@ -993,15 +1417,17 @@ func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vect
 		print("조합 사용 실패 / 하이라이트된 몬스터나 최종목표가 없음")
 		return false
 
-	combo_data["leader_card"] = leader_card
-
-	var combo_type: String = String(combo_data.get("combo_type", ""))
-	var combo_multiplier: int = _get_combo_multiplier(combo_type)
-
 	var cards_value = combo_data.get("cards", [])
 	if typeof(cards_value) != TYPE_ARRAY:
 		return false
 
+	var combo_cards: Array = cards_value as Array
+
+	combo_data["leader_card"] = leader_card
+	combo_data["card_role_by_instance_id"] = _build_combo_card_role_map(combo_cards, leader_card)
+
+	var combo_type: String = String(combo_data.get("combo_type", ""))
+	var combo_multiplier: int = _get_combo_multiplier(combo_type)
 	var attack_plan: Dictionary = _build_combo_attack_plan(combo_data, leader_card)
 
 	print(
@@ -1017,7 +1443,7 @@ func try_use_combo_by_leader(leader_card: TestCard, _mouse_global_position: Vect
 	_clear_combo_overlays()
 
 	is_combo_attack_in_progress = true
-	_play_combo_attack_sequence(combo_type, attack_plan, leader_card)
+	_play_combo_attack_sequence(combo_data, attack_plan, leader_card)
 
 	return true
 
@@ -1030,11 +1456,12 @@ func _get_combo_drag_highlighted_monster_slot() -> FieldSlot:
 
 	return _get_monster_slot(combo_drag_highlighted_monster_slot_no)
 
-func _play_combo_attack_sequence(combo_type: String, attack_plan: Dictionary, leader_card: TestCard) -> void:
+func _play_combo_attack_sequence(combo_data: Dictionary, attack_plan: Dictionary, leader_card: TestCard) -> void:
 	var removed_card_instance_ids: Dictionary = {}
 	var detached_cards_to_free: Array = []
 	var preview_owner: TestCard = leader_card
 	var attack_order_index: int = 1
+	var combo_type: String = String(combo_data.get("combo_type", ""))
 
 	var attack_entries_value = attack_plan.get("entries", [])
 	if typeof(attack_entries_value) != TYPE_ARRAY:
@@ -1071,6 +1498,9 @@ func _play_combo_attack_sequence(combo_type: String, attack_plan: Dictionary, le
 		if not is_instance_valid(attack_card):
 			continue
 
+		_run_combo_card_effects(CardDefinition.TIMING_BEFORE_ATTACK, combo_data, attack_entry)
+		refresh_runtime_combo_card_displays(combo_data)
+
 		var target_slot_no: int = 0
 		var is_fixed_overlap: bool = bool(attack_entry.get("is_fixed_overlap", false))
 
@@ -1081,9 +1511,8 @@ func _play_combo_attack_sequence(combo_type: String, attack_plan: Dictionary, le
 				leader_target_slot_no,
 				overlap_priority_slot_nos
 			)
-			
-		var hit_damage: int = _calculate_final_power_from_card_and_combo_type(attack_card, combo_type)
 
+		var hit_damage: int = _calculate_final_power_from_card_and_combo_type(attack_card, combo_type)
 		if is_final_objective_target:
 			if preview_owner != null and is_instance_valid(preview_owner):
 				if is_fixed_overlap:
@@ -1127,6 +1556,8 @@ func _play_combo_attack_sequence(combo_type: String, attack_plan: Dictionary, le
 			if preview_owner.has_method("consume_combo_drag_preview_card"):
 				preview_owner.consume_combo_drag_preview_card(attack_card)
 
+		_consume_card_attack_use_modifiers(attack_card)
+		_run_combo_card_effects(CardDefinition.TIMING_AFTER_USE, combo_data, attack_entry)
 		_send_combo_card_to_grave(attack_card, removed_card_instance_ids, detached_cards_to_free)
 		_print_pile_counts("조합 타격 %d 후" % attack_order_index)
 
@@ -1144,6 +1575,7 @@ func _play_combo_attack_sequence(combo_type: String, attack_plan: Dictionary, le
 			continue
 
 		detached_card.queue_free()
+
 	refresh_player_combos()
 	_print_pile_counts("조합 사용 후")
 	_refresh_open_pile_popup()
@@ -1174,6 +1606,35 @@ func _send_combo_card_to_grave(combo_card: TestCard, removed_card_instance_ids: 
 
 	detached_cards_to_free.append(combo_card)
 
+func _build_combo_card_role_map(combo_cards: Array, leader_card: TestCard) -> Dictionary:
+	var result: Dictionary = {}
+
+	for combo_card_variant in combo_cards:
+		var combo_card: TestCard = combo_card_variant as TestCard
+		if combo_card == null:
+			continue
+		if not is_instance_valid(combo_card):
+			continue
+
+		var role: String = "member"
+		if combo_card == leader_card:
+			role = "leader"
+
+		result[combo_card.get_instance_id()] = role
+
+	return result
+
+func get_combo_card_role(combo_data: Dictionary, target_card: TestCard) -> String:
+	if target_card == null:
+		return ""
+
+	var role_map_value = combo_data.get("card_role_by_instance_id", {})
+	if typeof(role_map_value) != TYPE_DICTIONARY:
+		return ""
+
+	var role_map: Dictionary = role_map_value as Dictionary
+	return String(role_map.get(target_card.get_instance_id(), ""))
+
 func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> Dictionary:
 	var result: Dictionary = {
 		"entries": [],
@@ -1189,6 +1650,11 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 	if typeof(cards_value) != TYPE_ARRAY:
 		return result
 
+	var role_map_value = combo_data.get("card_role_by_instance_id", {})
+	if typeof(role_map_value) != TYPE_DICTIONARY:
+		role_map_value = {}
+
+	var card_role_by_instance_id: Dictionary = role_map_value as Dictionary
 	var combo_cards: Array = cards_value as Array
 	var is_final_objective_target: bool = _is_final_objective_combo_target_active()
 
@@ -1198,6 +1664,7 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 
 		final_objective_entries.append({
 			"card": leader_card,
+			"card_role": String(card_role_by_instance_id.get(leader_card.get_instance_id(), "leader")),
 			"target_slot_no": 0,
 			"is_fixed_overlap": true
 		})
@@ -1220,6 +1687,7 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 
 			final_objective_entries.append({
 				"card": combo_card,
+				"card_role": String(card_role_by_instance_id.get(combo_card.get_instance_id(), "member")),
 				"target_slot_no": 0,
 				"is_fixed_overlap": false
 			})
@@ -1249,6 +1717,7 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 
 	result_entries.append({
 		"card": leader_card,
+		"card_role": String(card_role_by_instance_id.get(leader_card_id, "leader")),
 		"target_slot_no": leader_target_slot_no,
 		"is_fixed_overlap": true
 	})
@@ -1270,6 +1739,7 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 
 		var entry := {
 			"card": combo_card,
+			"card_role": String(card_role_by_instance_id.get(combo_card.get_instance_id(), "member")),
 			"target_slot_no": own_target_slot_no,
 			"is_fixed_overlap": own_target_slot_no > 0,
 			"sort_slot_no": sort_slot_no
@@ -1290,6 +1760,7 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 		var entry: Dictionary = entry_variant as Dictionary
 		result_entries.append({
 			"card": entry.get("card", null),
+			"card_role": String(entry.get("card_role", "member")),
 			"target_slot_no": int(entry.get("target_slot_no", 0)),
 			"is_fixed_overlap": true
 		})
@@ -1298,6 +1769,7 @@ func _build_combo_attack_plan(combo_data: Dictionary, leader_card: TestCard) -> 
 		var entry: Dictionary = entry_variant as Dictionary
 		result_entries.append({
 			"card": entry.get("card", null),
+			"card_role": String(entry.get("card_role", "member")),
 			"target_slot_no": 0,
 			"is_fixed_overlap": false
 		})
