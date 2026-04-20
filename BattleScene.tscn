@@ -379,6 +379,7 @@ grow_horizontal = 0
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot7" unique_id=1495262738]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -397,6 +398,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot6" unique_id=865931604]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -414,6 +416,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot5" unique_id=1178978591]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -438,6 +441,7 @@ grow_vertical = 2
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot4" unique_id=1349905421]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -455,6 +459,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot3" unique_id=1578340058]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -472,6 +477,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot2" unique_id=607154510]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -489,6 +495,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot1" unique_id=1129038640]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

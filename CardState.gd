@@ -9,10 +9,15 @@ var data_id: int = 0
 
 # 조합 판정용 그룹값
 var combo_id: int = 0
-
 # 카드 이름
 # 예: 빨강_01 / 파랑_03
 var card_name: String = ""
+
+# 카드 분류
+# suit = 상위 분류(heart / diamond / clover / spade)
+# faction = 하위 분류(sanctuary / bloodline 등)
+var suit: String = ""
+var faction: String = ""
 
 # 소속 진영
 var owner_side: String = "player"
@@ -42,11 +47,13 @@ func clear_temp_level_delta() -> void:
 	temp_level_delta = 0
 
 func to_log_string() -> String:
-	return "instance_id=%d / data_id=%d / combo_id=%d / card_name=%s / owner_side=%s / base_level=%d / temp_level_delta=%d / current_level=%d" % [
+	return "instance_id=%d / data_id=%d / combo_id=%d / card_name=%s / suit=%s / faction=%s / owner_side=%s / base_level=%d / temp_level_delta=%d / current_level=%d" % [
 		instance_id,
 		data_id,
 		combo_id,
 		card_name,
+		suit,
+		faction,
 		owner_side,
 		base_level,
 		temp_level_delta,

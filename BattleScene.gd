@@ -8,6 +8,7 @@ const CardLevelModifierSystemScript = preload("res://CardLevelModifierSystem.gd"
 const CardBuffDebuffSystemScript = preload("res://CardBuffDebuffSystem.gd")
 const CardDefinitionScript = preload("res://CardDefinition.gd")
 const CardEffectSystemScript = preload("res://CardEffectSystem.gd")
+const BattleTempResultPopupScript = preload("res://BattleTempResultPopup.gd")
 
 @onready var player_field_layer: Control = $Layer1_PlayerField
 @onready var deck_body: PileBody = $Layer1_PlayerField/Deck
@@ -67,6 +68,8 @@ var card_level_modifier_system: CardLevelModifierSystem = null
 var card_buff_debuff_system: CardBuffDebuffSystem = null
 var card_definition: CardDefinition = null
 var card_effect_system: CardEffectSystem = null
+var battle_temp_result_popup: BattleTempResultPopup = null
+var is_temporary_battle_result_open: bool = false
 var is_combo_attack_in_progress: bool = false
 
 func _ready() -> void:
@@ -80,6 +83,7 @@ func _ready() -> void:
 	_setup_card_effect_system()
 	_setup_card_stat_system()
 	_setup_monster_action_system()
+	_setup_battle_temp_result_popup()
 	_build_start_deck()
 	_create_pile_popup()
 	_setup_test_monsters()
@@ -161,6 +165,61 @@ func _setup_monster_action_system() -> void:
 	monster_action_system.setup(self)
 
 	print("몬스터 행동 시스템 연결 완료")
+
+func _setup_battle_temp_result_popup() -> void:
+	if battle_temp_result_popup != null:
+		return
+
+	battle_temp_result_popup = BattleTempResultPopupScript.new() as BattleTempResultPopup
+	if battle_temp_result_popup == null:
+		print("임시 전투 결과 팝업 생성 실패")
+		return
+
+	add_child(battle_temp_result_popup)
+
+	if not battle_temp_result_popup.restart_requested.is_connected(_on_battle_temp_result_restart_requested):
+		battle_temp_result_popup.restart_requested.connect(_on_battle_temp_result_restart_requested)
+
+	print("임시 전투 결과 팝업 연결 완료")
+
+func _on_battle_temp_result_restart_requested() -> void:
+	is_temporary_battle_result_open = false
+
+	if battle_temp_result_popup != null and is_instance_valid(battle_temp_result_popup):
+		battle_temp_result_popup.hide_popup()
+
+	get_tree().reload_current_scene()
+
+func _open_temporary_game_over() -> void:
+	if is_temporary_battle_result_open:
+		return
+
+	is_temporary_battle_result_open = true
+
+	if battle_temp_result_popup != null and is_instance_valid(battle_temp_result_popup):
+		battle_temp_result_popup.show_game_over()
+
+	print("임시 전투 결과 / GAME OVER")
+
+func _open_temporary_stage_clear() -> void:
+	if is_temporary_battle_result_open:
+		return
+
+	is_temporary_battle_result_open = true
+
+	if battle_temp_result_popup != null and is_instance_valid(battle_temp_result_popup):
+		battle_temp_result_popup.show_stage_clear()
+
+	print("임시 전투 결과 / STAGE CLEAR")
+
+func _get_player_hp_for_temp_result() -> int:
+	if not _can_use_player_status_ui():
+		return -1
+
+	return player_status_ui.get_hp()
+
+func _is_player_dead_for_temp_result() -> bool:
+	return _get_player_hp_for_temp_result() <= 0
 
 func _run_monster_action_phase(trigger_type: String) -> void:
 	if monster_action_system == null:
@@ -299,6 +358,9 @@ func _damage_final_objective(damage: int) -> void:
 
 	print("최종목표 피격 / 피해:", damage, "/ 남은 HP:", next_hp)
 
+	if next_hp <= 0:
+		_open_temporary_stage_clear()
+
 func _fix_scene_input_layers() -> void:
 	var ignore_paths: Array[String] = [
 		"Layer1_PlayerField/ColorRect",
@@ -353,6 +415,9 @@ func _on_grave_info_button_pressed() -> void:
 func _on_end_turn_button_pressed() -> void:
 	print("턴 종료 버튼 눌림")
 
+	if is_temporary_battle_result_open:
+		return
+
 	if is_opening_deal_in_progress:
 		print("턴 종료 무시 / 오프닝 배치 중")
 		return
@@ -362,6 +427,10 @@ func _on_end_turn_button_pressed() -> void:
 		return
 
 	await _run_monster_action_phase("turn_end")
+
+	if _is_player_dead_for_temp_result():
+		_open_temporary_game_over()
+		return
 
 	if _can_use_player_status_ui():
 		player_status_ui.reset_tp_to_start()
@@ -398,6 +467,8 @@ func _create_card_state(data_id: int, combo_id: int, card_name: String, owner_si
 	new_card.data_id = data_id
 	new_card.combo_id = combo_id
 	new_card.card_name = card_name
+	new_card.suit = ""
+	new_card.faction = ""
 	new_card.owner_side = owner_side
 	new_card.base_level = default_card_level
 	new_card.temp_level_delta = 0
@@ -406,9 +477,14 @@ func _create_card_state(data_id: int, combo_id: int, card_name: String, owner_si
 		var definition: Dictionary = card_definition.get_definition_by_data_id(data_id)
 		var display_name: String = String(definition.get("display_name", card_name))
 		var definition_id: String = String(definition.get("definition_id", ""))
+		var suit: String = String(definition.get("suit", ""))
+		var faction: String = String(definition.get("faction", ""))
 
 		if display_name != "":
 			new_card.card_name = display_name
+
+		new_card.suit = suit
+		new_card.faction = faction
 
 		if definition_id != "":
 			new_card.set_meta("card_definition_id", definition_id)
@@ -1563,6 +1639,9 @@ func _play_combo_attack_sequence(combo_data: Dictionary, attack_plan: Dictionary
 
 		attack_order_index += 1
 
+		if is_temporary_battle_result_open:
+			break
+
 	if preview_owner != null and is_instance_valid(preview_owner):
 		if preview_owner.has_method("finish_combo_drag_attack_preview"):
 			preview_owner.finish_combo_drag_attack_preview()
@@ -1581,7 +1660,16 @@ func _play_combo_attack_sequence(combo_data: Dictionary, attack_plan: Dictionary
 	_refresh_open_pile_popup()
 	clear_combo_drag_target_highlight()
 
+	if is_temporary_battle_result_open:
+		is_combo_attack_in_progress = false
+		return
+
 	await _run_monster_action_phase("after_combo")
+
+	if _is_player_dead_for_temp_result():
+		_open_temporary_game_over()
+		is_combo_attack_in_progress = false
+		return
 
 	is_combo_attack_in_progress = false
 
@@ -2365,6 +2453,17 @@ func _create_popup_card(card_state) -> Control:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(bg)
 
+	var level_label: Label = Label.new()
+	level_label.position = Vector2(4, -2)
+	level_label.size = Vector2(40, 24)
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level_label.text = str(int(card_state.get_current_level()))
+	level_label.add_theme_font_size_override("font_size", 24)
+	level_label.add_theme_color_override("font_color", _get_popup_card_level_color(card_state))
+	level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(level_label)
+
 	var name_label: Label = Label.new()
 	name_label.position = Vector2(0, 12)
 	name_label.size = Vector2(150, 24)
@@ -2424,6 +2523,21 @@ func _get_card_number_text(card_state) -> String:
 		return ""
 
 	return parts[1]
+
+func _get_popup_card_level_color(card_state) -> Color:
+	if card_state == null:
+		return Color(0, 0, 0, 1)
+
+	var current_level: int = int(card_state.get_current_level())
+	var base_level: int = int(card_state.base_level)
+
+	if current_level > base_level:
+		return Color(1.0, 0.85, 0.1, 1.0)
+
+	if current_level < base_level:
+		return Color(1.0, 0.25, 0.25, 1.0)
+
+	return Color(0, 0, 0, 1)
 
 func _get_popup_card_color_by_combo_id(combo_id: int) -> Color:
 	match combo_id:
