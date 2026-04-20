@@ -8,6 +8,8 @@ anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("1_67miw")
+card_name = null
+card_side = null
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=1627050155]
 layout_mode = 0

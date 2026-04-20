@@ -27,6 +27,7 @@ func _build_definitions() -> void:
 		"display_name": "Heart_01",
 		"suit": "heart",
 		"faction": "sanctuary",
+		"summary_text": "하모니 리더\n조합 내 카드\nBlessing +Self Lv",
 		"effects": [
 			{
 				"trigger": TRIGGER_HARMONY_LEADER,
@@ -42,6 +43,7 @@ func _build_definitions() -> void:
 		"display_name": "Heart_02",
 		"suit": "heart",
 		"faction": "sanctuary",
+		"summary_text": "멤버\n남은 필드 카드 1장\nGrowth +1",
 		"effects": [
 			{
 				"trigger": TRIGGER_MEMBER,
@@ -58,6 +60,7 @@ func _build_definitions() -> void:
 		"display_name": "Heart_03",
 		"suit": "heart",
 		"faction": "sanctuary",
+		"summary_text": "멤버\n남은 필드 카드 1장\nGrowth +1",
 		"effects": [
 			{
 				"trigger": TRIGGER_MEMBER,
@@ -66,6 +69,96 @@ func _build_definitions() -> void:
 				"amount": 1
 			}
 		]
+	}
+
+	definitions_by_data_id[104] = {
+		"definition_id": "spade_01",
+		"data_id": 104,
+		"display_name": "Spade_01",
+		"suit": "spade",
+		"faction": "strife",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[105] = {
+		"definition_id": "spade_02",
+		"data_id": 105,
+		"display_name": "Spade_02",
+		"suit": "spade",
+		"faction": "strife",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[106] = {
+		"definition_id": "spade_03",
+		"data_id": 106,
+		"display_name": "Spade_03",
+		"suit": "spade",
+		"faction": "strife",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[107] = {
+		"definition_id": "clover_01",
+		"data_id": 107,
+		"display_name": "Clover_01",
+		"suit": "clover",
+		"faction": "illusion",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[108] = {
+		"definition_id": "clover_02",
+		"data_id": 108,
+		"display_name": "Clover_02",
+		"suit": "clover",
+		"faction": "illusion",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[109] = {
+		"definition_id": "clover_03",
+		"data_id": 109,
+		"display_name": "Clover_03",
+		"suit": "clover",
+		"faction": "illusion",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[110] = {
+		"definition_id": "diamond_01",
+		"data_id": 110,
+		"display_name": "Diamond_01",
+		"suit": "diamond",
+		"faction": "citadel",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[111] = {
+		"definition_id": "diamond_02",
+		"data_id": 111,
+		"display_name": "Diamond_02",
+		"suit": "diamond",
+		"faction": "citadel",
+		"summary_text": "",
+		"effects": []
+	}
+
+	definitions_by_data_id[112] = {
+		"definition_id": "diamond_03",
+		"data_id": 112,
+		"display_name": "Diamond_03",
+		"suit": "diamond",
+		"faction": "citadel",
+		"summary_text": "",
+		"effects": []
 	}
 
 func get_definition_by_data_id(data_id: int) -> Dictionary:
@@ -87,21 +180,46 @@ func get_effects_by_data_id(data_id: int) -> Array:
 
 	return (effects_value as Array).duplicate(true)
 
+func get_summary_text_by_data_id(data_id: int) -> String:
+	var definition: Dictionary = get_definition_by_data_id(data_id)
+	return String(definition.get("summary_text", ""))
+
+func get_suit_by_data_id(data_id: int) -> String:
+	var definition: Dictionary = get_definition_by_data_id(data_id)
+	return String(definition.get("suit", ""))
+
+func get_faction_by_data_id(data_id: int) -> String:
+	var definition: Dictionary = get_definition_by_data_id(data_id)
+	return String(definition.get("faction", ""))
+
 func _make_fallback_definition(data_id: int) -> Dictionary:
 	var display_name: String = "Card_%03d" % data_id
+	var suit: String = ""
+	var faction: String = ""
 
-	if data_id >= 104 and data_id <= 106:
-		display_name = "Blue_%02d" % (data_id - 103)
+	if data_id >= 101 and data_id <= 103:
+		display_name = "Heart_%02d" % (data_id - 100)
+		suit = "heart"
+		faction = "sanctuary"
+	elif data_id >= 104 and data_id <= 106:
+		display_name = "Spade_%02d" % (data_id - 103)
+		suit = "spade"
+		faction = "strife"
 	elif data_id >= 107 and data_id <= 109:
-		display_name = "Green_%02d" % (data_id - 106)
+		display_name = "Clover_%02d" % (data_id - 106)
+		suit = "clover"
+		faction = "illusion"
 	elif data_id >= 110 and data_id <= 112:
-		display_name = "Yellow_%02d" % (data_id - 109)
+		display_name = "Diamond_%02d" % (data_id - 109)
+		suit = "diamond"
+		faction = "citadel"
 
 	return {
 		"definition_id": "fallback_%03d" % data_id,
 		"data_id": data_id,
 		"display_name": display_name,
-		"suit": "",
-		"faction": "",
+		"suit": suit,
+		"faction": faction,
+		"summary_text": "",
 		"effects": []
 	}
