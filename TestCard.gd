@@ -30,6 +30,7 @@ var combo_drag_preview_cards: Array = []
 var combo_drag_preview_outline: Panel = null
 var combo_drag_preview_label: Label = null
 var current_final_power_display: int = -1
+var card_symbol_font: SystemFont = null
 
 # 위쪽 드래그 시작 최소 거리
 const COMBO_DRAG_START_Y_DISTANCE: float = 18.0
@@ -884,14 +885,19 @@ func refresh_combo_drag_preview_all_card_labels() -> void:
 
 		var level_badge_symbol: Label = preview_card.get_node_or_null("PreviewLevelBadgeSymbol") as Label
 		if level_badge_symbol != null:
-			level_badge_symbol.text = source_card._get_card_symbol_text()
-			level_badge_symbol.add_theme_color_override("font_color", source_card._get_card_frame_color())
+			_apply_card_symbol_label(
+				level_badge_symbol,
+				source_card._get_card_symbol_text(),
+				source_card._get_card_symbol_color()
+	)
 
 		var power_badge_symbol: Label = preview_card.get_node_or_null("PreviewPowerBadgeSymbol") as Label
 		if power_badge_symbol != null:
-			power_badge_symbol.text = source_card._get_card_symbol_text()
-			power_badge_symbol.add_theme_color_override("font_color", source_card._get_card_frame_color())
-
+			_apply_card_symbol_label(
+				power_badge_symbol,
+				source_card._get_card_symbol_text(),
+				source_card._get_card_symbol_color()
+	)
 		var level_label: Label = preview_card.get_node_or_null("PreviewLevelLabel") as Label
 		if level_label != null:
 			level_label.text = source_card._get_current_level_text()
@@ -1341,12 +1347,12 @@ func _refresh_card_layout_positions() -> void:
 		$CardTextPanel.size = Vector2(section_w, text_h)
 
 	if has_node("CardLevelBadgeSymbol"):
-		$CardLevelBadgeSymbol.position = Vector2(4, -2)
-		$CardLevelBadgeSymbol.size = Vector2(44, 34)
+		$CardLevelBadgeSymbol.position = Vector2(6, -12)
+		$CardLevelBadgeSymbol.size = Vector2(44, 44)
 
 	if has_node("CardPowerBadgeSymbol"):
-		$CardPowerBadgeSymbol.position = Vector2(size.x - 48, -2)
-		$CardPowerBadgeSymbol.size = Vector2(44, 34)
+		$CardPowerBadgeSymbol.position = Vector2(size.x - 48, -12)
+		$CardPowerBadgeSymbol.size = Vector2(44, 44)
 
 	if has_node("CardLevelLabel"):
 		$CardLevelLabel.position = Vector2(6, -1)
@@ -1368,10 +1374,39 @@ func _refresh_card_layout_positions() -> void:
 		$CardSummaryLabel.position = text_panel.position + Vector2(8, 6)
 		$CardSummaryLabel.size = text_panel.size - Vector2(16, 12)
 
+func _get_card_symbol_font() -> SystemFont:
+	if card_symbol_font != null:
+		return card_symbol_font
+
+	card_symbol_font = SystemFont.new()
+	card_symbol_font.font_names = PackedStringArray([
+		"Segoe UI Symbol",
+		"Arial Unicode MS",
+		"Arial"
+	])
+	card_symbol_font.allow_system_fallback = false
+
+	return card_symbol_font
+
+func _apply_card_symbol_label(target_label: Label, symbol_text: String, symbol_color: Color) -> void:
+	if target_label == null:
+		return
+
+	target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	target_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+
+	target_label.add_theme_font_override("font", _get_card_symbol_font())
+	target_label.add_theme_font_size_override("font_size", 42)
+	target_label.add_theme_color_override("font_color", symbol_color)
+	target_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
+	target_label.add_theme_constant_override("outline_size", 8)
+	target_label.text = symbol_text
+
 func _refresh_card_layout_visuals() -> void:
 	var frame_color: Color = _get_card_frame_color()
 	var fill_color: Color = _get_card_fill_color()
 	var symbol_color: Color = _get_card_symbol_color()
+	var symbol_text: String = _get_card_symbol_text()
 
 	if has_node("ColorRect"):
 		$ColorRect.color = frame_color
@@ -1386,12 +1421,10 @@ func _refresh_card_layout_visuals() -> void:
 		_apply_panel_style($CardTextPanel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
 
 	if has_node("CardLevelBadgeSymbol"):
-		$CardLevelBadgeSymbol.text = _get_card_symbol_text()
-		$CardLevelBadgeSymbol.add_theme_color_override("font_color", symbol_color)
+		_apply_card_symbol_label($CardLevelBadgeSymbol, symbol_text, symbol_color)
 
 	if has_node("CardPowerBadgeSymbol"):
-		$CardPowerBadgeSymbol.text = _get_card_symbol_text()
-		$CardPowerBadgeSymbol.add_theme_color_override("font_color", symbol_color)
+		_apply_card_symbol_label($CardPowerBadgeSymbol, symbol_text, symbol_color)
 		
 func _apply_panel_style(panel: Panel, bg_color: Color, border_color: Color, border_width: int) -> void:
 	if panel == null:
@@ -1573,9 +1606,9 @@ func _get_card_symbol_color() -> Color:
 		"heart":
 			return Color(0.92, 0.20, 0.20, 1.0)
 		"diamond":
-			return Color(0.35, 0.72, 0.95, 1.0)
+			return Color(0.35, 0.72, 0.95, 1.0) # 다이아 / 보석 느낌 하늘색-청록 사이
 		"spade":
-			return Color(0.08, 0.08, 0.08, 1.0)
+			return Color(0.66, 0.66, 0.66, 1.0)
 		"clover":
 			return Color(0.14, 0.74, 0.30, 1.0)
 		_:
@@ -1584,13 +1617,13 @@ func _get_card_symbol_color() -> Color:
 func _get_card_symbol_text() -> String:
 	match _get_card_suit():
 		"heart":
-			return "♥"
+			return "♥︎"
 		"diamond":
-			return "♦"
+			return "♦︎"
 		"spade":
-			return "♠"
+			return "♠︎"
 		"clover":
-			return "♣"
+			return "♣︎"
 		_:
 			return ""
 
