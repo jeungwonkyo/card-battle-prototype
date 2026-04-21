@@ -598,15 +598,8 @@ func _create_combo_drag_card_preview(source_card: TestCard) -> Control:
 	preview_root.size = source_card.size
 
 	_duplicate_preview_control_node(preview_root, source_card, "ColorRect")
-	_duplicate_preview_control_node(preview_root, source_card, "CardInnerPanel")
 	_duplicate_preview_control_node(preview_root, source_card, "CardImagePanel")
 	_duplicate_preview_control_node(preview_root, source_card, "CardTextPanel")
-	_duplicate_preview_control_node(preview_root, source_card, "CardLevelBadgeSymbol", "PreviewLevelBadgeSymbol")
-	_duplicate_preview_control_node(preview_root, source_card, "CardPowerBadgeSymbol", "PreviewPowerBadgeSymbol")
-	_duplicate_preview_control_node(preview_root, source_card, "CardLevelLabel", "PreviewLevelLabel")
-	_duplicate_preview_control_node(preview_root, source_card, "CardFinalPowerLabel", "PreviewFinalPowerLabel")
-	_duplicate_preview_control_node(preview_root, source_card, "CardNumberLabel", "PreviewNumberLabel")
-	_duplicate_preview_control_node(preview_root, source_card, "CardSummaryLabel", "PreviewSummaryLabel")
 
 	return preview_root
 
@@ -883,36 +876,39 @@ func refresh_combo_drag_preview_all_card_labels() -> void:
 		if not is_instance_valid(source_card):
 			continue
 
-		var level_badge_symbol: Label = preview_card.get_node_or_null("PreviewLevelBadgeSymbol") as Label
+		var level_badge_symbol: Label = preview_card.get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
 		if level_badge_symbol != null:
 			_apply_card_symbol_label(
 				level_badge_symbol,
 				source_card._get_card_symbol_text(),
 				source_card._get_card_symbol_color()
-	)
+			)
 
-		var power_badge_symbol: Label = preview_card.get_node_or_null("PreviewPowerBadgeSymbol") as Label
+		var right_symbol: Panel = preview_card.get_node_or_null("CardImagePanel/RightSymbol") as Panel
+		if right_symbol != null:
+			right_symbol.visible = source_card._get_final_power_text() != ""
+
+		var power_badge_symbol: Label = preview_card.get_node_or_null("CardImagePanel/RightSymbol/CardPowerBadgeSymbol") as Label
 		if power_badge_symbol != null:
-			_apply_card_symbol_label(
-				power_badge_symbol,
-				source_card._get_card_symbol_text(),
-				source_card._get_card_symbol_color()
-	)
-		var level_label: Label = preview_card.get_node_or_null("PreviewLevelLabel") as Label
+			_apply_power_badge_label(power_badge_symbol)
+
+		var level_label: Label = preview_card.get_node_or_null("CardImagePanel/CardLevelBadgeSymbol/CardLevelLabel") as Label
 		if level_label != null:
 			level_label.text = source_card._get_current_level_text()
+			level_label.add_theme_font_size_override("font_size", source_card._get_level_label_font_size())
 			level_label.add_theme_color_override("font_color", source_card._get_current_level_color())
 
-		var final_power_label: Label = preview_card.get_node_or_null("PreviewFinalPowerLabel") as Label
+		var final_power_label: Label = preview_card.get_node_or_null("CardImagePanel/RightSymbol/CardFinalPowerLabel") as Label
 		if final_power_label != null:
 			final_power_label.text = source_card._get_final_power_text()
+			final_power_label.add_theme_font_size_override("font_size", source_card._get_final_power_label_font_size())
 			final_power_label.add_theme_color_override("font_color", source_card._get_current_level_color())
 
-		var number_label: Label = preview_card.get_node_or_null("PreviewNumberLabel") as Label
-		if number_label != null:
-			number_label.text = source_card._get_number_text_from_card_name()
+		var image_label: Label = preview_card.get_node_or_null("CardImagePanel/CardImageLabel") as Label
+		if image_label != null:
+			image_label.text = source_card._get_number_text_from_card_name()
 
-		var summary_label: Label = preview_card.get_node_or_null("PreviewSummaryLabel") as Label
+		var summary_label: Label = preview_card.get_node_or_null("CardTextPanel/CardSummaryLabel") as Label
 		if summary_label != null:
 			summary_label.text = source_card._get_card_summary_text()
 func _play_combo_dash_hit_preview_to_x(source_card: TestCard, target_x: float) -> void:
@@ -1172,16 +1168,28 @@ func _show_front_face() -> void:
 	if has_node("CardNameLabel"):
 		$CardNameLabel.visible = false
 
-	if has_node("CardLevelBadgeSymbol"):
-		$CardLevelBadgeSymbol.visible = true
-	if has_node("CardPowerBadgeSymbol"):
-		$CardPowerBadgeSymbol.visible = true
+	var level_badge_symbol: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
+	if level_badge_symbol != null:
+		level_badge_symbol.visible = true
 
-	if has_node("CardLevelLabel"):
-		$CardLevelLabel.visible = true
+	var final_power_text: String = _get_final_power_text()
+	var show_right_symbol: bool = final_power_text != ""
 
-	if has_node("CardFinalPowerLabel"):
-		$CardFinalPowerLabel.visible = true
+	var right_symbol: Panel = get_node_or_null("CardImagePanel/RightSymbol") as Panel
+	if right_symbol != null:
+		right_symbol.visible = show_right_symbol
+
+	var power_badge_symbol: Label = get_node_or_null("CardImagePanel/RightSymbol/CardPowerBadgeSymbol") as Label
+	if power_badge_symbol != null:
+		power_badge_symbol.visible = true
+
+	var level_label: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol/CardLevelLabel") as Label
+	if level_label != null:
+		level_label.visible = true
+
+	var final_power_label: Label = get_node_or_null("CardImagePanel/RightSymbol/CardFinalPowerLabel") as Label
+	if final_power_label != null:
+		final_power_label.visible = true
 
 	if has_node("CardNumberLabel"):
 		$CardNumberLabel.visible = true
@@ -1205,16 +1213,25 @@ func _show_back_face() -> void:
 	if has_node("CardNameLabel"):
 		$CardNameLabel.visible = false
 
-	if has_node("CardLevelBadgeSymbol"):
-		$CardLevelBadgeSymbol.visible = false
-	if has_node("CardPowerBadgeSymbol"):
-		$CardPowerBadgeSymbol.visible = false
+	var level_badge_symbol: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
+	if level_badge_symbol != null:
+		level_badge_symbol.visible = false
 
-	if has_node("CardLevelLabel"):
-		$CardLevelLabel.visible = false
+	var right_symbol: Panel = get_node_or_null("CardImagePanel/RightSymbol") as Panel
+	if right_symbol != null:
+		right_symbol.visible = false
 
-	if has_node("CardFinalPowerLabel"):
-		$CardFinalPowerLabel.visible = false
+	var power_badge_symbol: Label = get_node_or_null("CardImagePanel/RightSymbol/CardPowerBadgeSymbol") as Label
+	if power_badge_symbol != null:
+		power_badge_symbol.visible = true
+
+	var level_label: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol/CardLevelLabel") as Label
+	if level_label != null:
+		level_label.visible = false
+
+	var final_power_label: Label = get_node_or_null("CardImagePanel/RightSymbol/CardFinalPowerLabel") as Label
+	if final_power_label != null:
+		final_power_label.visible = true
 
 	if has_node("CardNumberLabel"):
 		$CardNumberLabel.visible = false
@@ -1242,137 +1259,53 @@ func _ensure_card_labels() -> void:
 	if has_node("CardNameLabel"):
 		$CardNameLabel.visible = false
 
-	if not has_node("CardLevelBadgeSymbol"):
-		var level_badge := Label.new()
-		level_badge.name = "CardLevelBadgeSymbol"
-		level_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		level_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		level_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		level_badge.add_theme_font_size_override("font_size", 28)
-		add_child(level_badge)
+	var level_badge_symbol: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
+	if level_badge_symbol != null:
+		level_badge_symbol.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	if not has_node("CardPowerBadgeSymbol"):
-		var power_badge := Label.new()
-		power_badge.name = "CardPowerBadgeSymbol"
-		power_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		power_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		power_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		power_badge.add_theme_font_size_override("font_size", 28)
-		add_child(power_badge)
+	var right_symbol: Panel = get_node_or_null("CardImagePanel/RightSymbol") as Panel
+	if right_symbol != null:
+		right_symbol.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	if not has_node("CardLevelLabel"):
-		var level_label := Label.new()
-		level_label.name = "CardLevelLabel"
+	var power_badge_symbol: Label = get_node_or_null("CardImagePanel/RightSymbol/CardPowerBadgeSymbol") as Label
+	if power_badge_symbol != null:
+		power_badge_symbol.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var level_label: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol/CardLevelLabel") as Label
+	if level_label != null:
 		level_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		add_child(level_label)
 
-	if not has_node("CardFinalPowerLabel"):
-		var final_power_label := Label.new()
-		final_power_label.name = "CardFinalPowerLabel"
+	var final_power_label: Label = get_node_or_null("CardImagePanel/RightSymbol/CardFinalPowerLabel") as Label
+	if final_power_label != null:
 		final_power_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		final_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		final_power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		add_child(final_power_label)
 
-	if not has_node("CardNumberLabel"):
-		var number_label := Label.new()
-		number_label.name = "CardNumberLabel"
-		number_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		number_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		number_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		number_label.add_theme_font_size_override("font_size", CARD_NUMBER_LABEL_FONT_SIZE)
-		number_label.add_theme_color_override("font_color", CARD_NUMBER_LABEL_COLOR)
-		add_child(number_label)
+	var image_label: Label = get_node_or_null("CardImagePanel/CardImageLabel") as Label
+	if image_label != null:
+		image_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	if not has_node("CardSummaryLabel"):
-		var summary_label := Label.new()
-		summary_label.name = "CardSummaryLabel"
+	var summary_label: Label = get_node_or_null("CardTextPanel/CardSummaryLabel") as Label
+	if summary_label != null:
 		summary_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		summary_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		summary_label.add_theme_font_size_override("font_size", CARD_SUMMARY_FONT_SIZE)
-		summary_label.add_theme_color_override("font_color", CARD_SUMMARY_LABEL_COLOR)
-		add_child(summary_label)
 
 	_refresh_card_layout_positions()
 	_refresh_card_layout_visuals()
 
 func _ensure_card_layout_nodes() -> void:
-	if not has_node("CardInnerPanel"):
-		var inner_panel := Panel.new()
-		inner_panel.name = "CardInnerPanel"
-		inner_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(inner_panel)
-
-	if not has_node("CardImagePanel"):
-		var image_panel := Panel.new()
-		image_panel.name = "CardImagePanel"
+	var image_panel: Control = get_node_or_null("CardImagePanel") as Control
+	if image_panel != null:
 		image_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(image_panel)
 
-	if not has_node("CardTextPanel"):
-		var text_panel := Panel.new()
-		text_panel.name = "CardTextPanel"
+	var text_panel: Control = get_node_or_null("CardTextPanel") as Control
+	if text_panel != null:
 		text_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(text_panel)
 
 	_refresh_card_layout_positions()
 	_refresh_card_layout_visuals()
 
 func _refresh_card_layout_positions() -> void:
-	var inner_pos := Vector2(CARD_FRAME_INSET, CARD_FRAME_INSET)
-	var inner_size := size - Vector2(CARD_FRAME_INSET * 2.0, CARD_FRAME_INSET * 2.0)
-
-	if has_node("CardInnerPanel"):
-		$CardInnerPanel.position = inner_pos
-		$CardInnerPanel.size = inner_size
-
-	var section_x: float = CARD_CONTENT_INSET_X
-	var section_y: float = CARD_CONTENT_TOP_Y
-	var section_w: float = size.x - (CARD_CONTENT_INSET_X * 2.0)
-	var usable_h: float = size.y - CARD_CONTENT_TOP_Y - CARD_CONTENT_BOTTOM_Y
-	var image_h: float = floor(usable_h * CARD_IMAGE_SECTION_RATIO)
-	var text_y: float = section_y + image_h + CARD_SECTION_GAP
-	var text_h: float = max(24.0, size.y - text_y - CARD_CONTENT_BOTTOM_Y)
-
-	if has_node("CardImagePanel"):
-		$CardImagePanel.position = Vector2(section_x, section_y)
-		$CardImagePanel.size = Vector2(section_w, image_h)
-
-	if has_node("CardTextPanel"):
-		$CardTextPanel.position = Vector2(section_x, text_y)
-		$CardTextPanel.size = Vector2(section_w, text_h)
-
-	if has_node("CardLevelBadgeSymbol"):
-		$CardLevelBadgeSymbol.position = Vector2(6, -12)
-		$CardLevelBadgeSymbol.size = Vector2(44, 44)
-
-	if has_node("CardPowerBadgeSymbol"):
-		$CardPowerBadgeSymbol.position = Vector2(size.x - 48, -12)
-		$CardPowerBadgeSymbol.size = Vector2(44, 44)
-
-	if has_node("CardLevelLabel"):
-		$CardLevelLabel.position = Vector2(6, -1)
-		$CardLevelLabel.size = CARD_LEVEL_LABEL_SIZE
-		$CardLevelLabel.add_theme_font_size_override("font_size", CARD_LEVEL_LABEL_FONT_SIZE)
-
-	if has_node("CardFinalPowerLabel"):
-		$CardFinalPowerLabel.position = Vector2(size.x - 46, -1)
-		$CardFinalPowerLabel.size = CARD_FINAL_POWER_LABEL_SIZE
-		$CardFinalPowerLabel.add_theme_font_size_override("font_size", CARD_FINAL_POWER_LABEL_FONT_SIZE)
-
-	if has_node("CardNumberLabel") and has_node("CardImagePanel"):
-		var image_panel: Panel = $CardImagePanel
-		$CardNumberLabel.position = image_panel.position + Vector2(0, max(8.0, (image_panel.size.y * 0.45) - 18.0))
-		$CardNumberLabel.size = Vector2(image_panel.size.x, 48)
-
-	if has_node("CardSummaryLabel") and has_node("CardTextPanel"):
-		var text_panel: Panel = $CardTextPanel
-		$CardSummaryLabel.position = text_panel.position + Vector2(8, 6)
-		$CardSummaryLabel.size = text_panel.size - Vector2(16, 12)
+	if has_node("SelectionOutline"):
+		$SelectionOutline.position = Vector2(4, 4)
+		$SelectionOutline.size = size - Vector2(8, 8)
 
 func _get_card_symbol_font() -> SystemFont:
 	if card_symbol_font != null:
@@ -1393,39 +1326,101 @@ func _apply_card_symbol_label(target_label: Label, symbol_text: String, symbol_c
 		return
 
 	target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	target_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-
+	target_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	target_label.add_theme_font_override("font", _get_card_symbol_font())
-	target_label.add_theme_font_size_override("font_size", 42)
+	target_label.add_theme_font_size_override("font_size", 54)
 	target_label.add_theme_color_override("font_color", symbol_color)
 	target_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
-	target_label.add_theme_constant_override("outline_size", 8)
+	target_label.add_theme_constant_override("outline_size", 4)
 	target_label.text = symbol_text
+
+func _apply_power_badge_label(target_label: Label) -> void:
+	if target_label == null:
+		return
+
+	target_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	target_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	target_label.add_theme_font_override("font", _get_card_symbol_font())
+	target_label.add_theme_font_size_override("font_size", 28)
+	target_label.add_theme_color_override("font_color", Color(0.12, 0.12, 0.12, 1.0))
+	target_label.add_theme_color_override("font_outline_color", Color(1.0, 1.0, 1.0, 0.9))
+	target_label.add_theme_constant_override("outline_size", 3)
+	target_label.text = "⚔"
+
+func _apply_right_symbol_style(panel: Panel, bg_color: Color) -> void:
+	if panel == null:
+		return
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.border_color = Color(0.12, 0.12, 0.12, 1.0)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.corner_radius_top_left = 12
+	style.corner_radius_top_right = 12
+	style.corner_radius_bottom_left = 12
+	style.corner_radius_bottom_right = 12
+
+	panel.add_theme_stylebox_override("panel", style)
 
 func _refresh_card_layout_visuals() -> void:
 	var frame_color: Color = _get_card_frame_color()
-	var fill_color: Color = _get_card_fill_color()
 	var symbol_color: Color = _get_card_symbol_color()
 	var symbol_text: String = _get_card_symbol_text()
 
 	if has_node("ColorRect"):
 		$ColorRect.color = frame_color
 
-	if has_node("CardInnerPanel"):
-		_apply_panel_style($CardInnerPanel, fill_color, Color(0, 0, 0, 0), 0)
+	var image_panel: Panel = get_node_or_null("CardImagePanel") as Panel
+	if image_panel != null:
+		_apply_panel_style(image_panel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
 
-	if has_node("CardImagePanel"):
-		_apply_panel_style($CardImagePanel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
+	var text_panel: Panel = get_node_or_null("CardTextPanel") as Panel
+	if text_panel != null:
+		_apply_panel_style(text_panel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
 
-	if has_node("CardTextPanel"):
-		_apply_panel_style($CardTextPanel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
+	var level_badge_symbol: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
+	if level_badge_symbol != null:
+		_apply_card_symbol_label(level_badge_symbol, symbol_text, symbol_color)
 
-	if has_node("CardLevelBadgeSymbol"):
-		_apply_card_symbol_label($CardLevelBadgeSymbol, symbol_text, symbol_color)
+	var right_symbol: Panel = get_node_or_null("CardImagePanel/RightSymbol") as Panel
+	if right_symbol != null:
+		_apply_right_symbol_style(right_symbol, symbol_color)
 
-	if has_node("CardPowerBadgeSymbol"):
-		_apply_card_symbol_label($CardPowerBadgeSymbol, symbol_text, symbol_color)
+	var power_badge_symbol: Label = get_node_or_null("CardImagePanel/RightSymbol/CardPowerBadgeSymbol") as Label
+	if power_badge_symbol != null:
+		_apply_power_badge_label(power_badge_symbol)
+
+	var level_label: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol/CardLevelLabel") as Label
+	if level_label != null:
+		level_label.add_theme_font_size_override("font_size", _get_level_label_font_size())
+		level_label.add_theme_color_override("font_color", _get_current_level_color())
+		level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	var final_power_label: Label = get_node_or_null("CardImagePanel/RightSymbol/CardFinalPowerLabel") as Label
+	if final_power_label != null:
+		final_power_label.add_theme_font_size_override("font_size", _get_final_power_label_font_size())
+		final_power_label.add_theme_color_override("font_color", CARD_FINAL_POWER_LABEL_COLOR)
+		final_power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		final_power_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		
+	var image_label: Label = get_node_or_null("CardImagePanel/CardImageLabel") as Label
+	if image_label != null:
+		image_label.add_theme_font_size_override("font_size", CARD_NUMBER_LABEL_FONT_SIZE)
+		image_label.add_theme_color_override("font_color", CARD_NUMBER_LABEL_COLOR)
+		image_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		image_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	var summary_label: Label = get_node_or_null("CardTextPanel/CardSummaryLabel") as Label
+	if summary_label != null:
+		summary_label.add_theme_font_size_override("font_size", CARD_SUMMARY_FONT_SIZE)
+		summary_label.add_theme_color_override("font_color", CARD_SUMMARY_LABEL_COLOR)
+		summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		summary_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 func _apply_panel_style(panel: Panel, bg_color: Color, border_color: Color, border_width: int) -> void:
 	if panel == null:
 		return
@@ -1464,19 +1459,36 @@ func _update_card_labels() -> void:
 	if has_node("CardNameLabel"):
 		$CardNameLabel.visible = false
 
-	if has_node("CardLevelLabel"):
-		$CardLevelLabel.text = _get_current_level_text()
-		$CardLevelLabel.add_theme_color_override("font_color", _get_current_level_color())
+	var level_label: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol/CardLevelLabel") as Label
+	if level_label != null:
+		level_label.text = _get_current_level_text()
+		level_label.add_theme_font_size_override("font_size", _get_level_label_font_size())
+		level_label.add_theme_color_override("font_color", _get_current_level_color())
+		
+	var final_power_text: String = _get_final_power_text()
+	var show_right_symbol: bool = final_power_text != ""
 
-	if has_node("CardFinalPowerLabel"):
-		$CardFinalPowerLabel.text = _get_final_power_text()
-		$CardFinalPowerLabel.add_theme_color_override("font_color", _get_current_level_color())
+	var right_symbol: Panel = get_node_or_null("CardImagePanel/RightSymbol") as Panel
+	if right_symbol != null:
+		right_symbol.visible = show_right_symbol
 
-	if has_node("CardNumberLabel"):
-		$CardNumberLabel.text = _get_number_text_from_card_name()
+	var power_badge_symbol: Label = get_node_or_null("CardImagePanel/RightSymbol/CardPowerBadgeSymbol") as Label
+	if power_badge_symbol != null:
+		power_badge_symbol.visible = true
 
-	if has_node("CardSummaryLabel"):
-		$CardSummaryLabel.text = _get_card_summary_text()
+	var final_power_label: Label = get_node_or_null("CardImagePanel/RightSymbol/CardFinalPowerLabel") as Label
+	if final_power_label != null:
+		final_power_label.text = final_power_text
+		final_power_label.visible = true
+		final_power_label.add_theme_font_size_override("font_size", _get_final_power_label_font_size())
+		final_power_label.add_theme_color_override("font_color", _get_current_level_color())
+	var image_label: Label = get_node_or_null("CardImagePanel/CardImageLabel") as Label
+	if image_label != null:
+		image_label.text = _get_number_text_from_card_name()
+
+	var summary_label: Label = get_node_or_null("CardTextPanel/CardSummaryLabel") as Label
+	if summary_label != null:
+		summary_label.text = _get_card_summary_text()
 		
 func _get_card_definition_instance() -> CardDefinition:
 	if card_definition_cache == null:
@@ -1524,6 +1536,17 @@ func _get_current_level_text() -> String:
 
 	return str(card_state.get_current_level())
 
+func _get_level_label_font_size() -> int:
+	var level_text: String = _get_current_level_text()
+
+	if level_text.length() >= 3:
+		return 14
+
+	if level_text.length() >= 2:
+		return 18
+
+	return CARD_LEVEL_LABEL_FONT_SIZE
+
 func _get_current_level_color() -> Color:
 	if card_state == null:
 		return CARD_LEVEL_LABEL_COLOR
@@ -1544,6 +1567,17 @@ func _get_final_power_text() -> String:
 		return ""
 
 	return str(current_final_power_display)
+
+func _get_final_power_label_font_size() -> int:
+	var final_power_text: String = _get_final_power_text()
+
+	if final_power_text.length() >= 3:
+		return CARD_FINAL_POWER_LABEL_FONT_SIZE - 4
+
+	if final_power_text.length() >= 2:
+		return CARD_FINAL_POWER_LABEL_FONT_SIZE - 2
+
+	return CARD_FINAL_POWER_LABEL_FONT_SIZE
 
 func set_final_power_display(value: int) -> void:
 	current_final_power_display = max(0, value)

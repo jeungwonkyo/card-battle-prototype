@@ -5,8 +5,8 @@
 [node name="TestCard" type="Control" unique_id=1745920221]
 layout_mode = 3
 anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_right = 150.0
+offset_bottom = 221.0
 script = ExtResource("1_67miw")
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=1627050155]
@@ -14,3 +14,99 @@ layout_mode = 0
 offset_right = 150.0
 offset_bottom = 221.0
 color = Color(1, 0.09019608, 1, 1)
+
+[node name="CardImagePanel" type="Panel" parent="." unique_id=520725755]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 138.0
+offset_bottom = 125.0
+
+[node name="CardImageLabel" type="Label" parent="CardImagePanel" unique_id=1921197537]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -63.0
+offset_top = -57.5
+offset_right = 63.0
+offset_bottom = 57.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+autowrap_mode = 3
+
+[node name="RightSymbol" type="Panel" parent="CardImagePanel" unique_id=778140795]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -50.0
+offset_bottom = 36.0
+grow_horizontal = 0
+
+[node name="CardPowerBadgeSymbol" type="Label" parent="CardImagePanel/RightSymbol" unique_id=1005268660]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -7.0
+offset_top = -23.0
+offset_right = 37.0
+offset_bottom = 21.0
+grow_vertical = 2
+
+[node name="CardFinalPowerLabel" type="Label" parent="CardImagePanel/RightSymbol" unique_id=1717500277]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -44.0
+offset_top = -22.0
+offset_bottom = 22.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="CardLevelBadgeSymbol" type="Label" parent="CardImagePanel" unique_id=1583422488]
+layout_mode = 1
+offset_left = -4.0
+offset_top = -20.0
+offset_right = 40.0
+offset_bottom = 24.0
+
+[node name="CardLevelLabel" type="Label" parent="CardImagePanel/CardLevelBadgeSymbol" unique_id=5489904]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -22.0
+offset_top = -22.0
+offset_right = 22.0
+offset_bottom = 22.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="CardTextPanel" type="Panel" parent="." unique_id=1212096222]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 133.0
+offset_right = 138.0
+offset_bottom = 209.0
+
+[node name="CardSummaryLabel" type="Label" parent="CardTextPanel" unique_id=1905406091]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -63.0
+offset_right = 63.0
+offset_bottom = 76.0
+grow_horizontal = 2
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
