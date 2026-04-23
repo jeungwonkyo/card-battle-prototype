@@ -116,6 +116,14 @@ func _damage_player(damage: int) -> void:
 	if damage <= 0:
 		return
 
+	if battle_scene == null:
+		print("플레이어 피격 실패 / battle_scene 없음")
+		return
+
+	if battle_scene.has_method("apply_damage_to_player"):
+		battle_scene.call("apply_damage_to_player", damage)
+		return
+
 	var status_ui: Node = _get_player_status_ui()
 	if status_ui == null:
 		print("플레이어 피격 실패 / PlayerStatusUI 없음")
@@ -210,6 +218,9 @@ func _can_run_action_phase() -> bool:
 
 func set_basic_attack_damage(new_damage: int) -> void:
 	basic_attack_damage = max(0, new_damage)
+
+	if battle_scene != null and battle_scene.has_method("refresh_all_monster_attack_displays"):
+		battle_scene.call_deferred("refresh_all_monster_attack_displays")
 
 
 func get_basic_attack_damage() -> int:

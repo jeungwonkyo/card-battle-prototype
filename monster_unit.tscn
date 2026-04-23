@@ -1,0 +1,148 @@
+[gd_scene format=3 uid="uid://b51g7vj7txwqr"]
+
+[node name="monster_unit" type="Control" unique_id=935253986]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 150.0
+offset_bottom = 221.0
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=213460209]
+custom_minimum_size = Vector2(150, 221)
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="MonsterImagePanel" type="Panel" parent="." unique_id=680387764]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 138.0
+offset_bottom = 125.0
+
+[node name="MonsterImageLabel" type="Label" parent="MonsterImagePanel" unique_id=1631243714]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -63.0
+offset_top = -57.5
+offset_right = 63.0
+offset_bottom = 57.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+autowrap_mode = 3
+
+[node name="MonsterAttackSymbol" type="Panel" parent="MonsterImagePanel" unique_id=13536605]
+layout_mode = 1
+offset_right = 50.0
+offset_bottom = 36.0
+
+[node name="MonsterSwordSymbol" type="Label" parent="MonsterImagePanel/MonsterAttackSymbol" unique_id=1347995689]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = -7.0
+offset_top = -23.0
+offset_right = 37.0
+offset_bottom = 21.0
+grow_vertical = 2
+
+[node name="MonsterAttackLabel" type="Label" parent="MonsterImagePanel/MonsterAttackSymbol" unique_id=1679103550]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -44.0
+offset_top = -22.0
+offset_bottom = 22.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="MonsterEffectSymbol" type="Label" parent="MonsterImagePanel" unique_id=1392434598]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -88.0
+offset_right = -44.0
+offset_bottom = 44.0
+grow_horizontal = 0
+
+[node name="MonsterEffectLabel" type="Label" parent="MonsterImagePanel/MonsterEffectSymbol" unique_id=1663249546]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -22.0
+offset_top = -22.0
+offset_right = 22.0
+offset_bottom = 22.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MonsterLifeBadgeSymbol" type="Label" parent="MonsterImagePanel" unique_id=886400956]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -44.0
+offset_bottom = 44.0
+grow_horizontal = 0
+
+[node name="MonsterLifelLabel" type="Label" parent="MonsterImagePanel/MonsterLifeBadgeSymbol" unique_id=283874171]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -22.0
+offset_top = -22.0
+offset_right = 22.0
+offset_bottom = 22.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MonsterTextPanel" type="Panel" parent="." unique_id=127074905]
+layout_mode = 0
+offset_left = 12.0
+offset_top = 133.0
+offset_right = 138.0
+offset_bottom = 209.0
+
+[node name="MonsterSummaryLabel" type="Label" parent="MonsterTextPanel" unique_id=1072657003]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -63.0
+offset_right = 63.0
+offset_bottom = 76.0
+grow_horizontal = 2
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="Skill" type="Panel" parent="MonsterTextPanel" unique_id=1997662451]
+layout_mode = 1
+offset_right = 31.0
+offset_bottom = 26.0
+
+[node name="MonsterTextMain" type="Label" parent="MonsterTextPanel" unique_id=259928125]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -63.0
+offset_right = 63.0
+offset_bottom = 24.0
+grow_horizontal = 2
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3

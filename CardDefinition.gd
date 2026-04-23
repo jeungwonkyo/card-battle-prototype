@@ -12,7 +12,13 @@ const TIMING_AFTER_USE: String = "after_use"
 
 const EFFECT_GRANT_COMBO_BLESSING_BY_SELF_LEVEL: String = "grant_combo_blessing_by_self_level"
 const EFFECT_GRANT_RANDOM_REMAINING_FIELD_CARD_GROWTH: String = "grant_random_remaining_field_card_growth"
-
+const EFFECT_GRANT_ALL_SUIT_CARDS_GROWTH: String = "grant_all_suit_cards_growth"
+const EFFECT_GRANT_SELF_GROWTH: String = "grant_self_growth"
+const EFFECT_GAIN_SHIELD_BY_SELF_FINAL_POWER: String = "gain_shield_by_self_final_power"
+const EFFECT_GAIN_SHIELD_BY_SELF_LEVEL: String = "gain_shield_by_self_level"
+const EFFECT_RESERVE_MEMBER_CLONES_BY_SELF_LEVEL: String = "reserve_member_clones_by_self_level"
+const EFFECT_RESERVE_SELF_CLONE_BY_SELF_LEVEL: String = "reserve_self_clone_by_self_level"
+const EFFECT_HEAL_PLAYER_HP_BY_SELF_LEVEL_X2: String = "heal_player_hp_by_self_level_x2"
 var definitions_by_data_id: Dictionary = {}
 
 func _init() -> void:
@@ -27,12 +33,12 @@ func _build_definitions() -> void:
 		"display_name": "Heart_01",
 		"suit": "heart",
 		"faction": "sanctuary",
-		"summary_text": "하모니 리더\n조합 내 카드\nBlessing +Self Lv",
+		"summary_text": "하모니 리더\nhp를 레벨x2\n 만큼 회복({SELF_LV_X2})",
 		"effects": [
 			{
 				"trigger": TRIGGER_HARMONY_LEADER,
 				"timing": TIMING_BEFORE_ATTACK,
-				"effect_type": EFFECT_GRANT_COMBO_BLESSING_BY_SELF_LEVEL
+				"effect_type": EFFECT_HEAL_PLAYER_HP_BY_SELF_LEVEL_X2
 			}
 		]
 	}
@@ -43,11 +49,11 @@ func _build_definitions() -> void:
 		"display_name": "Heart_02",
 		"suit": "heart",
 		"faction": "sanctuary",
-		"summary_text": "멤버\n남은 필드 카드 1장\nGrowth +1",
+		"summary_text": "멤버\n남은 필드 카드 {REMAIN_FIELD_TARGET_COUNT}장\nGrowth +{GROWTH_AMOUNT}",
 		"effects": [
 			{
 				"trigger": TRIGGER_MEMBER,
-				"timing": TIMING_AFTER_USE,
+				"timing": TIMING_BEFORE_ATTACK,
 				"effect_type": EFFECT_GRANT_RANDOM_REMAINING_FIELD_CARD_GROWTH,
 				"amount": 1
 			}
@@ -71,14 +77,39 @@ func _build_definitions() -> void:
 		]
 	}
 
+	definitions_by_data_id[113] = {
+		"definition_id": "heart_04",
+		"data_id": 113,
+		"display_name": "Heart_04",
+		"suit": "heart",
+		"faction": "sanctuary",
+		"summary_text": "하모니 리더\n조합 내 카드\nBlessing +Self Lv({SELF_LV})",
+		"effects": [
+			{
+				"trigger": TRIGGER_HARMONY_LEADER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GRANT_COMBO_BLESSING_BY_SELF_LEVEL,
+				"target_scope": "members_only"
+			}
+		]
+	}
+
 	definitions_by_data_id[104] = {
 		"definition_id": "spade_01",
 		"data_id": 104,
 		"display_name": "Spade_01",
 		"suit": "spade",
 		"faction": "strife",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "하모니 리더\n모든 스페이드 카드\nGrowth +1",
+		"effects": [
+			{
+				"trigger": TRIGGER_HARMONY_LEADER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GRANT_ALL_SUIT_CARDS_GROWTH,
+				"target_suit": "spade",
+				"amount": 1
+			}
+		]
 	}
 
 	definitions_by_data_id[105] = {
@@ -87,8 +118,15 @@ func _build_definitions() -> void:
 		"display_name": "Spade_02",
 		"suit": "spade",
 		"faction": "strife",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "멤버\n이 카드\nGrowth +1",
+		"effects": [
+			{
+				"trigger": TRIGGER_MEMBER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GRANT_SELF_GROWTH,
+				"amount": 1
+			}
+		]
 	}
 
 	definitions_by_data_id[106] = {
@@ -97,8 +135,15 @@ func _build_definitions() -> void:
 		"display_name": "Spade_03",
 		"suit": "spade",
 		"faction": "strife",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "멤버\n이 카드\nGrowth +1",
+		"effects": [
+			{
+				"trigger": TRIGGER_MEMBER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GRANT_SELF_GROWTH,
+				"amount": 1
+			}
+		]
 	}
 
 	definitions_by_data_id[107] = {
@@ -107,8 +152,14 @@ func _build_definitions() -> void:
 		"display_name": "Clover_01",
 		"suit": "clover",
 		"faction": "illusion",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "하모니 리더\n멤버를 레벨과 동일\n한 분신으로 생성({SELF_LV})",
+		"effects": [
+			{
+				"trigger": TRIGGER_HARMONY_LEADER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_RESERVE_MEMBER_CLONES_BY_SELF_LEVEL
+			}
+		]
 	}
 
 	definitions_by_data_id[108] = {
@@ -117,8 +168,14 @@ func _build_definitions() -> void:
 		"display_name": "Clover_02",
 		"suit": "clover",
 		"faction": "illusion",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "멤버\n레벨과 동일한 \n분신 1장 생성({SELF_LV})",
+		"effects": [
+			{
+				"trigger": TRIGGER_MEMBER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_RESERVE_SELF_CLONE_BY_SELF_LEVEL
+			}
+		]
 	}
 
 	definitions_by_data_id[109] = {
@@ -127,18 +184,29 @@ func _build_definitions() -> void:
 		"display_name": "Clover_03",
 		"suit": "clover",
 		"faction": "illusion",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "멤버\n레벨과 동일한\n분신 1장 생성({SELF_LV})",
+		"effects": [
+			{
+				"trigger": TRIGGER_MEMBER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_RESERVE_SELF_CLONE_BY_SELF_LEVEL
+			}
+		]
 	}
-
 	definitions_by_data_id[110] = {
 		"definition_id": "diamond_01",
 		"data_id": 110,
 		"display_name": "Diamond_01",
 		"suit": "diamond",
 		"faction": "citadel",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "하모니 리더\n최종 위력만큼\nShield 획득({SELF_FINAL_POWER})",
+		"effects": [
+			{
+				"trigger": TRIGGER_HARMONY_LEADER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GAIN_SHIELD_BY_SELF_FINAL_POWER
+			}
+		]
 	}
 
 	definitions_by_data_id[111] = {
@@ -147,8 +215,14 @@ func _build_definitions() -> void:
 		"display_name": "Diamond_02",
 		"suit": "diamond",
 		"faction": "citadel",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "멤버\n본인 레벨만큼\nShield 획득({SELF_LV})",
+		"effects": [
+			{
+				"trigger": TRIGGER_MEMBER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GAIN_SHIELD_BY_SELF_LEVEL
+			}
+		]
 	}
 
 	definitions_by_data_id[112] = {
@@ -157,8 +231,14 @@ func _build_definitions() -> void:
 		"display_name": "Diamond_03",
 		"suit": "diamond",
 		"faction": "citadel",
-		"summary_text": "",
-		"effects": []
+		"summary_text": "멤버\n본인 레벨만큼\nShield 획득({SELF_LV})",
+		"effects": [
+			{
+				"trigger": TRIGGER_MEMBER,
+				"timing": TIMING_BEFORE_ATTACK,
+				"effect_type": EFFECT_GAIN_SHIELD_BY_SELF_LEVEL
+			}
+		]
 	}
 
 func get_definition_by_data_id(data_id: int) -> Dictionary:

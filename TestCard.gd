@@ -72,6 +72,8 @@ const CARD_NUMBER_LABEL_COLOR: Color = Color(0, 0, 0, 1)
 const CARD_SUMMARY_FONT_SIZE: int = 12
 const CARD_SUMMARY_LABEL_COLOR: Color = Color(0.08, 0.08, 0.08, 1.0)
 
+const CLONE_CARD_VISUAL_ALPHA: float = 0.45
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -1370,16 +1372,24 @@ func _refresh_card_layout_visuals() -> void:
 	var symbol_color: Color = _get_card_symbol_color()
 	var symbol_text: String = _get_card_symbol_text()
 
+	var image_panel_bg_color: Color = CARD_SECTION_BG_COLOR
+	var text_panel_bg_color: Color = CARD_SECTION_BG_COLOR
+
+	if _is_clone_card_visual():
+		frame_color.a = CLONE_CARD_VISUAL_ALPHA
+		image_panel_bg_color.a = CLONE_CARD_VISUAL_ALPHA
+		text_panel_bg_color.a = CLONE_CARD_VISUAL_ALPHA
+
 	if has_node("ColorRect"):
 		$ColorRect.color = frame_color
 
 	var image_panel: Panel = get_node_or_null("CardImagePanel") as Panel
 	if image_panel != null:
-		_apply_panel_style(image_panel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
+		_apply_panel_style(image_panel, image_panel_bg_color, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
 
 	var text_panel: Panel = get_node_or_null("CardTextPanel") as Panel
 	if text_panel != null:
-		_apply_panel_style(text_panel, CARD_SECTION_BG_COLOR, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
+		_apply_panel_style(text_panel, text_panel_bg_color, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
 
 	var level_badge_symbol: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
 	if level_badge_symbol != null:
@@ -1421,6 +1431,7 @@ func _refresh_card_layout_visuals() -> void:
 		summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		summary_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 		summary_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		
 func _apply_panel_style(panel: Panel, bg_color: Color, border_color: Color, border_width: int) -> void:
 	if panel == null:
 		return
@@ -1433,6 +1444,12 @@ func _apply_panel_style(panel: Panel, bg_color: Color, border_color: Color, bord
 	style.border_width_right = border_width
 	style.border_width_bottom = border_width
 	panel.add_theme_stylebox_override("panel", style)
+
+func _is_clone_card_visual() -> bool:
+	if card_state == null:
+		return false
+
+	return card_state.is_clone_card()
 func _ensure_selection_outline() -> void:
 	if has_node("SelectionOutline"):
 		return
@@ -1666,7 +1683,34 @@ func _get_card_summary_text() -> String:
 		return ""
 
 	var definition: Dictionary = _get_card_definition_for_data_id(int(card_state.data_id))
-	return String(definition.get("summary_text", ""))
+	var summary_text: String = String(definition.get("summary_text", ""))
+
+	summary_text = summary_text.replace(
+		"{SELF_LV}",
+		str(int(card_state.get_current_level()))
+	)
+
+	summary_text = summary_text.replace(
+		"{SELF_LV_X2}",
+		str(int(card_state.get_current_level()) * 2)
+	)
+
+	summary_text = summary_text.replace(
+		"{SELF_FINAL_POWER}",
+		str(max(0, current_final_power_display))
+	)
+
+	summary_text = summary_text.replace(
+		"{REMAIN_FIELD_TARGET_COUNT}",
+		"1"
+	)
+
+	summary_text = summary_text.replace(
+		"{GROWTH_AMOUNT}",
+		"1"
+	)
+
+	return summary_text
 
 func set_selected_visual(is_selected: bool) -> void:
 	if not has_node("SelectionOutline"):

@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://caer02wci8c5m" path="res://FieldSlot.gd" id="1_ttbo7"]
 [ext_resource type="Script" uid="uid://jhfijs2op1o0" path="res://PileBody.gd" id="2_hvnqj"]
 [ext_resource type="Script" uid="uid://cucvr6flq0pnh" path="res://PlayerStatusUI.gd" id="2_teshm"]
+[ext_resource type="Script" uid="uid://cekgm10rr0pgv" path="res://ShieldpointUI.gd" id="3_7pwqm"]
 [ext_resource type="Script" uid="uid://dn18qq8qol5pf" path="res://FinalObjective.gd" id="4_musxc"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k6106"]
@@ -46,9 +47,9 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -138.5
+offset_left = -125.0
 offset_top = -45.5
-offset_right = 138.5
+offset_right = 125.0
 offset_bottom = 45.5
 grow_horizontal = 2
 grow_vertical = 2
@@ -84,6 +85,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Panel" type="Panel" parent="Layer0_UI/PlayerStatusUI2" unique_id=200327763]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -100,6 +102,29 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.25490198, 0.49411765, 1, 1)
+
+[node name="ShieldpointUI" type="Control" parent="Layer0_UI" unique_id=1780996338]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -229.5
+offset_top = -45.5
+offset_right = -129.5
+offset_bottom = 45.5
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_7pwqm")
+
+[node name="Panel" type="Panel" parent="Layer0_UI/ShieldpointUI" unique_id=1383101605]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="Layer1_PlayerField" type="Control" parent="." unique_id=509029035]
 layout_mode = 3
@@ -183,7 +208,6 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="P_SlotStation_Ground" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation" unique_id=1922190740]
-visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -205,6 +229,7 @@ grow_horizontal = 0
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot7" unique_id=1658428448]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -223,6 +248,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot6" unique_id=1717407949]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -240,6 +266,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot5" unique_id=1779634645]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -264,6 +291,7 @@ grow_vertical = 2
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot4" unique_id=1164732614]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -281,6 +309,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot3" unique_id=2045756364]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -298,6 +327,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot2" unique_id=827977535]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -315,6 +345,7 @@ offset_bottom = 230.5
 script = ExtResource("1_ttbo7")
 
 [node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot1" unique_id=1897045820]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -619,3 +650,28 @@ offset_bottom = 40.0
 script = ExtResource("4_musxc")
 objective_root_path = NodePath("../Boss")
 objective_info_bar_path = NodePath("../BossInfoBar")
+
+[node name="TurnNumber" type="Control" parent="Layer3_Bossfield" unique_id=1959086282]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = 470.5
+offset_top = 125.0
+offset_right = 707.5
+offset_bottom = 206.0
+grow_horizontal = 2
+
+[node name="ColorRect" type="ColorRect" parent="Layer3_Bossfield/TurnNumber" unique_id=1952845718]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -1.0
+offset_top = -3.0
+offset_right = -1.0
+offset_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07058824, 1, 1, 1)

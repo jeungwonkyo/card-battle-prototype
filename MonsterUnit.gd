@@ -29,6 +29,13 @@ var _hp_badge_root: Control = null
 var _hp_icon_label: Label = null
 var _hp_label: Label = null
 
+var _hp_preview_badge_root: Control = null
+var _hp_preview_arrow_label: Label = null
+var _hp_preview_icon_label: Label = null
+var _hp_preview_label: Label = null
+var _hp_preview_back_overlay: ColorRect = null
+var _hp_preview_default_position: Vector2 = Vector2.ZERO
+
 var _front_color: Color = Color(0.18, 0.18, 0.18, 0.88)
 var _back_color: Color = Color(0.10, 0.10, 0.10, 0.95)
 var _highlight_color: Color = Color(0.85, 0.20, 0.20, 0.95)
@@ -47,6 +54,7 @@ func setup_unit(new_slot_no: int, unit_size: Vector2) -> void:
 	set_attack_value(current_attack)
 	set_effect_symbols([])
 	set_hp_text(0)
+	clear_hp_preview()
 
 
 func _ensure_visual_nodes() -> void:
@@ -56,6 +64,15 @@ func _ensure_visual_nodes() -> void:
 		_body.name = "MonsterBody"
 		_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(_body)
+
+	_hp_preview_back_overlay = get_node_or_null("MonsterHpPreviewBackOverlay") as ColorRect
+	if _hp_preview_back_overlay == null:
+		_hp_preview_back_overlay = ColorRect.new()
+		_hp_preview_back_overlay.name = "MonsterHpPreviewBackOverlay"
+		_hp_preview_back_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hp_preview_back_overlay.visible = false
+		_hp_preview_back_overlay.color = Color(0.08, 0.08, 0.08, 0.45)
+		add_child(_hp_preview_back_overlay)
 
 	_attack_badge_panel = get_node_or_null("MonsterAttackBadge") as Panel
 	if _attack_badge_panel == null:
@@ -137,6 +154,7 @@ func _ensure_visual_nodes() -> void:
 
 		_effect_badge_panels.append(badge_panel)
 		_effect_labels.append(effect_label)
+
 	_hp_badge_root = get_node_or_null("MonsterHpBadgeRoot") as Control
 	if _hp_badge_root == null:
 		_hp_badge_root = Control.new()
@@ -167,11 +185,71 @@ func _ensure_visual_nodes() -> void:
 		_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_hp_badge_root.add_child(_hp_label)
 
+	_hp_preview_badge_root = get_node_or_null("MonsterHpPreviewBadgeRoot") as Control
+	if _hp_preview_badge_root == null:
+		_hp_preview_badge_root = Control.new()
+		_hp_preview_badge_root.name = "MonsterHpPreviewBadgeRoot"
+		_hp_preview_badge_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hp_preview_badge_root.visible = false
+		add_child(_hp_preview_badge_root)
+
+	_hp_preview_arrow_label = _hp_preview_badge_root.get_node_or_null("MonsterHpPreviewArrowLabel") as Label
+	if _hp_preview_arrow_label == null:
+		_hp_preview_arrow_label = Label.new()
+		_hp_preview_arrow_label.name = "MonsterHpPreviewArrowLabel"
+		_hp_preview_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hp_preview_arrow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_hp_preview_arrow_label.add_theme_font_size_override("font_size", 16)
+		_hp_preview_arrow_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50, 0.95))
+		_hp_preview_arrow_label.text = "▼"
+		_hp_preview_arrow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hp_preview_badge_root.add_child(_hp_preview_arrow_label)
+
+	_hp_preview_icon_label = _hp_preview_badge_root.get_node_or_null("MonsterHpPreviewIconLabel") as Label
+	if _hp_preview_icon_label == null:
+		_hp_preview_icon_label = Label.new()
+		_hp_preview_icon_label.name = "MonsterHpPreviewIconLabel"
+		_hp_preview_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hp_preview_icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_hp_preview_icon_label.add_theme_font_size_override("font_size", 28)
+		_hp_preview_icon_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.70, 0.85))
+		_hp_preview_icon_label.text = "♥"
+		_hp_preview_icon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hp_preview_badge_root.add_child(_hp_preview_icon_label)
+
+	_hp_preview_label = _hp_preview_badge_root.get_node_or_null("MonsterHpPreviewLabel") as Label
+	if _hp_preview_label == null:
+		_hp_preview_label = Label.new()
+		_hp_preview_label.name = "MonsterHpPreviewLabel"
+		_hp_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hp_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_hp_preview_label.add_theme_font_size_override("font_size", 16)
+		_hp_preview_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.95))
+		_hp_preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hp_preview_badge_root.add_child(_hp_preview_label)
+
+	if _body != null:
+		_body.z_index = 0
+	if _hp_preview_back_overlay != null:
+		_hp_preview_back_overlay.z_index = 1
+	if _attack_badge_panel != null:
+		_attack_badge_panel.z_index = 2
+	if _effect_container != null:
+		_effect_container.z_index = 2
+	if _hp_badge_root != null:
+		_hp_badge_root.z_index = 2
+	if _hp_preview_badge_root != null:
+		_hp_preview_badge_root.z_index = 3
+
 
 func _layout_visual_nodes() -> void:
 	if _body != null:
 		_body.position = Vector2.ZERO
 		_body.size = size
+
+	if _hp_preview_back_overlay != null:
+		_hp_preview_back_overlay.position = Vector2.ZERO
+		_hp_preview_back_overlay.size = size
 
 	var badge_top_y: float = 1.0
 	var attack_left_x: float = 1.0
@@ -217,6 +295,27 @@ func _layout_visual_nodes() -> void:
 	if _hp_label != null:
 		_hp_label.position = Vector2(0, 1)
 		_hp_label.size = hp_badge_size
+
+	var hp_preview_badge_size: Vector2 = Vector2(40, 38)
+	var hp_preview_left_x: float = hp_left_x - 4.0
+	var hp_preview_top_y: float = hp_top_y + 34.0
+
+	if _hp_preview_badge_root != null:
+		_hp_preview_badge_root.position = Vector2(hp_preview_left_x, hp_preview_top_y)
+		_hp_preview_badge_root.size = hp_preview_badge_size
+		_hp_preview_default_position = _hp_preview_badge_root.position
+
+	if _hp_preview_arrow_label != null:
+		_hp_preview_arrow_label.position = Vector2(-4.0, -12.0)
+		_hp_preview_arrow_label.size = Vector2(hp_preview_badge_size.x + 8.0, 12.0)
+
+	if _hp_preview_icon_label != null:
+		_hp_preview_icon_label.position = Vector2(0, 2)
+		_hp_preview_icon_label.size = hp_preview_badge_size
+
+	if _hp_preview_label != null:
+		_hp_preview_label.position = Vector2(0, 4)
+		_hp_preview_label.size = hp_preview_badge_size
 		
 	if _effect_container != null:
 		var effect_left_x: float = attack_left_x + attack_badge_size.x + 8.0
@@ -250,6 +349,125 @@ func set_hp_text(hp: int) -> void:
 		return
 
 	_hp_label.text = str(max(0, hp))
+
+
+func show_hp_preview(current_hp: int, preview_hp: int) -> void:
+	_ensure_visual_nodes()
+	_layout_visual_nodes()
+
+	if is_face_down:
+		clear_hp_preview()
+		return
+
+	if preview_hp == current_hp:
+		clear_hp_preview()
+		return
+
+	if _hp_preview_badge_root == null:
+		return
+
+	_hp_preview_badge_root.visible = true
+	_hp_preview_badge_root.position = _hp_preview_default_position
+	_hp_preview_badge_root.scale = Vector2.ONE
+	_hp_preview_badge_root.modulate = Color(1, 1, 1, 0.88)
+
+	if _hp_preview_arrow_label != null:
+		_hp_preview_arrow_label.visible = true
+
+	if preview_hp <= 0:
+		if _hp_preview_icon_label != null:
+			_hp_preview_icon_label.visible = false
+
+		if _hp_preview_label != null:
+			_hp_preview_label.text = "KO"
+			_hp_preview_label.add_theme_font_size_override("font_size", 16)
+			_hp_preview_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.82, 1.0))
+
+		if _hp_preview_back_overlay != null:
+			_hp_preview_back_overlay.visible = true
+			_hp_preview_back_overlay.modulate = Color(1, 1, 1, 1)
+	else:
+		if _hp_preview_icon_label != null:
+			_hp_preview_icon_label.visible = true
+
+		if _hp_preview_label != null:
+			_hp_preview_label.text = str(max(0, preview_hp))
+			_hp_preview_label.add_theme_font_size_override("font_size", 16)
+			_hp_preview_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.98))
+
+		if _hp_preview_back_overlay != null:
+			_hp_preview_back_overlay.visible = false
+
+
+func clear_hp_preview() -> void:
+	if _hp_preview_badge_root != null:
+		_hp_preview_badge_root.visible = false
+		_hp_preview_badge_root.position = _hp_preview_default_position
+		_hp_preview_badge_root.scale = Vector2.ONE
+		_hp_preview_badge_root.modulate = Color(1, 1, 1, 0.88)
+
+	if _hp_preview_arrow_label != null:
+		_hp_preview_arrow_label.visible = false
+
+	if _hp_preview_icon_label != null:
+		_hp_preview_icon_label.visible = true
+
+	if _hp_preview_label != null:
+		_hp_preview_label.text = ""
+
+	if _hp_preview_back_overlay != null:
+		_hp_preview_back_overlay.visible = false
+		_hp_preview_back_overlay.modulate = Color(1, 1, 1, 1)
+
+
+func play_hp_preview_confirm_animation(final_hp: int) -> void:
+	_ensure_visual_nodes()
+
+	if is_face_down:
+		clear_hp_preview()
+		return
+
+	if _hp_preview_badge_root == null or not _hp_preview_badge_root.visible:
+		if final_hp > 0:
+			set_hp_text(final_hp)
+		return
+
+	if final_hp <= 0:
+		var ko_tween = create_tween()
+		ko_tween.set_parallel(true)
+		ko_tween.tween_property(_hp_preview_badge_root, "scale", Vector2(1.12, 1.12), 0.06)
+		ko_tween.tween_property(_hp_preview_badge_root, "modulate", Color(1, 1, 1, 0.0), 0.10)
+
+		if _hp_preview_back_overlay != null:
+			_hp_preview_back_overlay.visible = true
+			_hp_preview_back_overlay.modulate = Color(1, 1, 1, 0.0)
+			ko_tween.tween_property(_hp_preview_back_overlay, "modulate", Color(1, 1, 1, 1.0), 0.10)
+
+		await ko_tween.finished
+		clear_hp_preview()
+		return
+
+	var target_position: Vector2 = Vector2.ZERO
+	if _hp_badge_root != null:
+		target_position = _hp_badge_root.position + Vector2(4.0, -2.0)
+	else:
+		target_position = _hp_preview_default_position
+
+	var absorb_tween = create_tween()
+	absorb_tween.set_parallel(true)
+	absorb_tween.tween_property(_hp_preview_badge_root, "position", target_position, 0.10)
+	absorb_tween.tween_property(_hp_preview_badge_root, "scale", Vector2(0.82, 0.82), 0.10)
+	absorb_tween.tween_property(_hp_preview_badge_root, "modulate", Color(1, 1, 1, 0.0), 0.10)
+	await absorb_tween.finished
+
+	set_hp_text(final_hp)
+	clear_hp_preview()
+
+	if _hp_badge_root != null:
+		_hp_badge_root.scale = Vector2(1.12, 1.12)
+		var pop_tween = create_tween()
+		pop_tween.tween_property(_hp_badge_root, "scale", Vector2.ONE, 0.10)
+		await pop_tween.finished
 
 
 func set_effect_symbols(symbols: Array) -> void:
@@ -300,6 +518,8 @@ func apply_front_face() -> void:
 	if _hp_badge_root != null:
 		_hp_badge_root.visible = true
 
+	clear_hp_preview()
+
 
 func apply_back_face() -> void:
 	_ensure_visual_nodes()
@@ -317,6 +537,8 @@ func apply_back_face() -> void:
 
 	if _hp_badge_root != null:
 		_hp_badge_root.visible = false
+
+	clear_hp_preview()
 
 
 func set_highlight(is_on: bool) -> void:
