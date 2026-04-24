@@ -92,7 +92,7 @@ var combo_drag_preview_monster_hp_after_by_slot_no: Dictionary = {}
 var combo_drag_preview_monster_targeted_slot_nos: Array = []
 var final_objective_combo_drag_highlighted: bool = false
 var final_objective_combo_drag_preview_highlighted: bool = false
-var combo_drag_preview_final_objective_hp_after: int = -1
+var combo_drag_preview_final_objective_after_hp: int = -1
 
 var monster_action_system: MonsterActionSystem = null
 var card_stat_system: CardStatSystem = null
@@ -633,10 +633,7 @@ func _damage_final_objective(damage: int) -> void:
 	var current_hp: int = int(final_objective.call("get_hp"))
 	var next_hp: int = max(0, current_hp - damage)
 
-	if final_objective.has_method("play_hp_preview_confirm_animation"):
-		await final_objective.call("play_hp_preview_confirm_animation", next_hp)
-	else:
-		final_objective.call("set_hp", next_hp)
+	final_objective.call("set_hp", next_hp)
 
 	print("최종목표 피격 / 피해:", damage, "/ 남은 HP:", next_hp)
 
@@ -2262,7 +2259,7 @@ func _play_combo_attack_sequence(combo_data: Dictionary, attack_plan: Dictionary
 					if preview_owner.has_method("play_combo_contact_hit_preview"):
 						await preview_owner.play_combo_contact_hit_preview(attack_card)
 
-			await _damage_final_objective(hit_damage)
+			_damage_final_objective(hit_damage)
 		elif target_slot_no > 0 and _get_monster_current_hp(target_slot_no) > 0:
 			if preview_owner != null and is_instance_valid(preview_owner):
 				if is_fixed_overlap:
@@ -2285,7 +2282,7 @@ func _play_combo_attack_sequence(combo_data: Dictionary, attack_plan: Dictionary
 				if preview_owner.has_method("play_combo_contact_hit_preview"):
 					await preview_owner.play_combo_contact_hit_preview(attack_card)
 
-			await _damage_final_objective(hit_damage)
+			_damage_final_objective(hit_damage)
 		else:
 			print("조합 타격 실패 / 유효한 타겟 없음 / 카드:", attack_card.card_name)
 
@@ -2717,9 +2714,8 @@ func update_combo_drag_target_highlight_by_point(target_point_global: Vector2) -
 		combo_drag_preview_card_target_slot_by_id.clear()
 		_apply_combo_drag_preview_highlight_slots([])
 		_clear_combo_drag_monster_hp_previews()
-		_set_final_objective_combo_drag_preview_highlight(false)
 		_set_final_objective_combo_drag_highlight(true)
-		_refresh_final_objective_hp_preview_from_active_leader()
+		_refresh_final_objective_combo_drag_preview_from_active_leader()
 		return
 
 	_set_final_objective_combo_drag_highlight(false)
@@ -2728,12 +2724,10 @@ func update_combo_drag_target_highlight_by_point(target_point_global: Vector2) -
 
 	if target_slot == null:
 		combo_drag_highlighted_monster_slot_no = 0
-
-		if combo_drag_preview_card_target_slot_by_id.is_empty():
-			_clear_final_objective_hp_preview()
 	else:
 		combo_drag_highlighted_monster_slot_no = target_slot.slot_no
 
+	_refresh_final_objective_combo_drag_preview_from_active_leader()
 func get_combo_drag_highlighted_monster_slot_for_preview() -> FieldSlot:
 	return _get_combo_drag_highlighted_monster_slot()
 
@@ -2766,8 +2760,6 @@ func update_combo_drag_snapped_overlap_preview(card_rect_datas: Array) -> void:
 	_apply_combo_drag_preview_highlight_slots(next_slot_nos)
 	combo_drag_preview_card_target_slot_by_id = next_card_targets
 	_refresh_combo_drag_monster_hp_preview_from_active_leader()
-	_refresh_final_objective_combo_drag_preview_from_active_leader()
-	_refresh_final_objective_hp_preview_from_active_leader()
 
 	if combo_drag_preview_card_target_slot_by_id.is_empty():
 		_set_final_objective_combo_drag_preview_highlight(false)
@@ -2778,12 +2770,11 @@ func update_combo_drag_snapped_overlap_preview(card_rect_datas: Array) -> void:
 func clear_combo_drag_target_highlight() -> void:
 	_apply_combo_drag_preview_highlight_slots([])
 	_set_final_objective_combo_drag_highlight(false)
-	_set_final_objective_combo_drag_preview_highlight(false)
 	_clear_combo_drag_monster_hp_previews()
-	_clear_final_objective_hp_preview()
+	_clear_final_objective_combo_drag_hp_preview()
+	_set_final_objective_combo_drag_preview_highlight(false)
 	combo_drag_highlighted_monster_slot_no = 0
 	combo_drag_preview_card_target_slot_by_id.clear()
-	
 func _apply_combo_drag_preview_highlight_slots(next_slot_nos: Array) -> void:
 	for prev_slot_no_variant in combo_drag_preview_highlight_slot_nos:
 		var prev_slot_no: int = int(prev_slot_no_variant)
@@ -2883,155 +2874,6 @@ func _get_active_combo_drag_leader_card() -> TestCard:
 			return test_card
 
 	return null
-
-func _refresh_final_objective_hp_preview_from_active_leader() -> void:
-	if final_objective == null:
-		return
-	if not is_instance_valid(final_objective):
-		return
-
-	var is_direct_final_objective_target: bool = final_objective_combo_drag_highlighted
-	var has_overlap_preview: bool = not combo_drag_preview_card_target_slot_by_id.is_empty()
-
-	if not is_direct_final_objective_target and not has_overlap_preview:
-		_clear_final_objective_hp_preview()
-		return
-
-	var leader_card: TestCard = _get_active_combo_drag_leader_card()
-	if leader_card == null:
-		_clear_final_objective_hp_preview()
-		return
-
-	var combo_data: Dictionary = get_combo_data_for_card(leader_card)
-	if combo_data.is_empty():
-		_clear_final_objective_hp_preview()
-		return
-
-	var cards_value = combo_data.get("cards", [])
-	if typeof(cards_value) != TYPE_ARRAY:
-		_clear_final_objective_hp_preview()
-		return
-
-	var combo_cards: Array = cards_value as Array
-	combo_data["leader_card"] = leader_card
-	combo_data["card_role_by_instance_id"] = _build_combo_card_role_map(combo_cards, leader_card)
-
-	var preview_result: Dictionary = _build_combo_drag_final_objective_hp_preview_result(combo_data, leader_card)
-	var will_hit_final_objective: bool = bool(preview_result.get("will_hit_final_objective", false))
-
-	if not will_hit_final_objective:
-		_clear_final_objective_hp_preview()
-		return
-
-	var after_hp: int = int(preview_result.get("after_hp", int(final_objective.call("get_hp"))))
-	combo_drag_preview_final_objective_hp_after = after_hp
-
-	if final_objective.has_method("show_hp_preview"):
-		final_objective.call("show_hp_preview", after_hp)
-
-func _clear_final_objective_hp_preview() -> void:
-	combo_drag_preview_final_objective_hp_after = -1
-
-	if final_objective == null:
-		return
-	if not is_instance_valid(final_objective):
-		return
-	if not final_objective.has_method("clear_hp_preview"):
-		return
-
-	final_objective.call("clear_hp_preview")
-
-func _build_combo_drag_final_objective_hp_preview_result(combo_data: Dictionary, leader_card: TestCard) -> Dictionary:
-	var result: Dictionary = {
-		"will_hit_final_objective": false,
-		"after_hp": 0
-	}
-
-	if combo_data.is_empty():
-		return result
-
-	if leader_card == null:
-		return result
-
-	if not _can_hit_final_objective():
-		return result
-
-	var current_final_objective_hp: int = int(final_objective.call("get_hp"))
-	result["after_hp"] = current_final_objective_hp
-
-	var attack_plan: Dictionary = _build_combo_attack_plan(combo_data, leader_card)
-	var leader_target_type: String = String(attack_plan.get("leader_target_type", "monster"))
-	var combo_type: String = String(combo_data.get("combo_type", ""))
-
-	var attack_entries_value = attack_plan.get("entries", [])
-	if typeof(attack_entries_value) != TYPE_ARRAY:
-		attack_entries_value = []
-	var attack_entries: Array = attack_entries_value as Array
-
-	var leader_target_slot_no: int = int(attack_plan.get("leader_target_slot_no", 0))
-
-	var overlap_priority_value = attack_plan.get("overlap_priority_slot_nos", [])
-	if typeof(overlap_priority_value) != TYPE_ARRAY:
-		overlap_priority_value = []
-	var overlap_priority_slot_nos: Array = overlap_priority_value as Array
-
-	var simulated_hp_by_slot_no: Dictionary = {}
-	for slot_no in range(1, 8):
-		simulated_hp_by_slot_no[slot_no] = _get_monster_current_hp(slot_no)
-
-	var simulated_final_objective_hp: int = current_final_objective_hp
-	var before_attack_preview_state: Dictionary = _make_before_attack_combo_preview_state(combo_data)
-
-	for attack_entry_variant in attack_entries:
-		if typeof(attack_entry_variant) != TYPE_DICTIONARY:
-			continue
-
-		var attack_entry: Dictionary = attack_entry_variant as Dictionary
-		var attack_card: TestCard = attack_entry.get("card", null) as TestCard
-
-		if attack_card == null:
-			continue
-		if not is_instance_valid(attack_card):
-			continue
-		if attack_card.card_state == null:
-			continue
-
-		_apply_before_attack_effects_to_combo_preview(combo_data, attack_entry, before_attack_preview_state)
-
-		var hit_damage: int = _calculate_preview_final_power_from_card_and_combo_type(
-			attack_card,
-			combo_type,
-			before_attack_preview_state
-		)
-
-		if leader_target_type == "final_objective":
-			simulated_final_objective_hp = max(0, simulated_final_objective_hp - hit_damage)
-			result["will_hit_final_objective"] = true
-			continue
-
-		var target_slot_no: int = 0
-		var is_fixed_overlap: bool = bool(attack_entry.get("is_fixed_overlap", false))
-
-		if is_fixed_overlap:
-			target_slot_no = int(attack_entry.get("target_slot_no", 0))
-		else:
-			target_slot_no = _resolve_non_overlapped_combo_target_slot_no_from_simulated_hp(
-				leader_target_slot_no,
-				overlap_priority_slot_nos,
-				simulated_hp_by_slot_no
-			)
-
-		if target_slot_no > 0 and int(simulated_hp_by_slot_no.get(target_slot_no, 0)) > 0:
-			var current_monster_hp: int = int(simulated_hp_by_slot_no.get(target_slot_no, 0))
-			simulated_hp_by_slot_no[target_slot_no] = max(0, current_monster_hp - hit_damage)
-			continue
-
-		if not _has_alive_combo_target_slots_from_simulated_hp(overlap_priority_slot_nos, simulated_hp_by_slot_no):
-			simulated_final_objective_hp = max(0, simulated_final_objective_hp - hit_damage)
-			result["will_hit_final_objective"] = true
-
-	result["after_hp"] = simulated_final_objective_hp
-	return result
 
 func _build_combo_drag_monster_hp_preview_result(combo_data: Dictionary, leader_card: TestCard) -> Dictionary:
 	var result: Dictionary = {
@@ -3480,46 +3322,87 @@ func _get_preview_leader_card_only(attack_entry: Dictionary) -> Array:
 	return result
 
 func _refresh_final_objective_combo_drag_preview_from_active_leader() -> void:
-	if final_objective_combo_drag_highlighted:
-		_set_final_objective_combo_drag_preview_highlight(false)
-		return
-
-	if combo_drag_preview_card_target_slot_by_id.is_empty():
-		_set_final_objective_combo_drag_preview_highlight(false)
-		return
-
 	var leader_card: TestCard = _get_active_combo_drag_leader_card()
 	if leader_card == null:
+		_clear_final_objective_combo_drag_hp_preview()
+		_set_final_objective_combo_drag_preview_highlight(false)
+		return
+
+	if not final_objective_combo_drag_highlighted and combo_drag_preview_card_target_slot_by_id.is_empty():
+		_clear_final_objective_combo_drag_hp_preview()
 		_set_final_objective_combo_drag_preview_highlight(false)
 		return
 
 	var combo_data: Dictionary = get_combo_data_for_card(leader_card)
 	if combo_data.is_empty():
+		_clear_final_objective_combo_drag_hp_preview()
 		_set_final_objective_combo_drag_preview_highlight(false)
 		return
 
-	_set_final_objective_combo_drag_preview_highlight(
-		_will_combo_drag_preview_hit_final_objective(combo_data, leader_card)
-	)
+	var preview_result: Dictionary = _build_final_objective_combo_drag_hp_preview_result(combo_data, leader_card)
+	var should_preview: bool = bool(preview_result.get("should_preview", false))
+	var after_hp: int = int(preview_result.get("after_hp", -1))
 
+	if not should_preview or after_hp < 0:
+		_clear_final_objective_combo_drag_hp_preview()
+		_set_final_objective_combo_drag_preview_highlight(false)
+		return
 
+	_apply_final_objective_combo_drag_hp_preview(after_hp)
+	_set_final_objective_combo_drag_preview_highlight(true)
 
 func _will_combo_drag_preview_hit_final_objective(combo_data: Dictionary, leader_card: TestCard) -> bool:
+	var preview_result: Dictionary = _build_final_objective_combo_drag_hp_preview_result(combo_data, leader_card)
+	return bool(preview_result.get("should_preview", false))
+
+
+func _apply_final_objective_combo_drag_hp_preview(after_hp: int) -> void:
+	if final_objective == null:
+		return
+	if not is_instance_valid(final_objective):
+		return
+	if not final_objective.has_method("show_hp_preview"):
+		return
+	if not final_objective.has_method("get_hp"):
+		return
+
+	var current_hp: int = int(final_objective.call("get_hp"))
+	var clamped_after_hp: int = max(0, min(after_hp, current_hp))
+	combo_drag_preview_final_objective_after_hp = clamped_after_hp
+	final_objective.call("show_hp_preview", current_hp, clamped_after_hp)
+
+
+func _clear_final_objective_combo_drag_hp_preview() -> void:
+	combo_drag_preview_final_objective_after_hp = -1
+
+	if final_objective == null:
+		return
+	if not is_instance_valid(final_objective):
+		return
+	if not final_objective.has_method("clear_hp_preview"):
+		return
+
+	final_objective.call("clear_hp_preview")
+
+
+func _build_final_objective_combo_drag_hp_preview_result(combo_data: Dictionary, leader_card: TestCard) -> Dictionary:
+	var result: Dictionary = {
+		"should_preview": false,
+		"after_hp": -1
+	}
+
 	if combo_data.is_empty():
-		return false
+		return result
 
 	if leader_card == null:
-		return false
+		return result
 
 	if not _can_hit_final_objective():
-		return false
+		return result
 
 	var attack_plan: Dictionary = _build_combo_attack_plan(combo_data, leader_card)
 	var leader_target_type: String = String(attack_plan.get("leader_target_type", "monster"))
-
-	if leader_target_type == "final_objective":
-		return true
-
+	var is_final_objective_target: bool = leader_target_type == "final_objective"
 	var combo_type: String = String(combo_data.get("combo_type", ""))
 
 	var attack_entries_value = attack_plan.get("entries", [])
@@ -3538,6 +3421,7 @@ func _will_combo_drag_preview_hit_final_objective(combo_data: Dictionary, leader
 	for slot_no in range(1, 8):
 		simulated_hp_by_slot_no[slot_no] = _get_monster_current_hp(slot_no)
 
+	var simulated_final_objective_hp: int = int(final_objective.call("get_hp"))
 	var before_attack_preview_state: Dictionary = _make_before_attack_combo_preview_state(combo_data)
 
 	for attack_entry_variant in attack_entries:
@@ -3573,16 +3457,22 @@ func _will_combo_drag_preview_hit_final_objective(combo_data: Dictionary, leader
 			before_attack_preview_state
 		)
 
+		if is_final_objective_target:
+			simulated_final_objective_hp = max(0, simulated_final_objective_hp - hit_damage)
+			result["should_preview"] = true
+			continue
+
 		if target_slot_no > 0 and int(simulated_hp_by_slot_no.get(target_slot_no, 0)) > 0:
 			var current_hp: int = int(simulated_hp_by_slot_no.get(target_slot_no, 0))
 			simulated_hp_by_slot_no[target_slot_no] = max(0, current_hp - hit_damage)
 			continue
 
 		if not _has_alive_combo_target_slots_from_simulated_hp(overlap_priority_slot_nos, simulated_hp_by_slot_no):
-			return true
+			simulated_final_objective_hp = max(0, simulated_final_objective_hp - hit_damage)
+			result["should_preview"] = true
 
-	return false
-
+	result["after_hp"] = simulated_final_objective_hp
+	return result
 
 
 func _has_alive_combo_target_slots_from_simulated_hp(

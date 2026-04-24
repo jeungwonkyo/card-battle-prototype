@@ -3,9 +3,22 @@
 [ext_resource type="Script" uid="uid://b6ltri8pnh4q6" path="res://BattleScene.gd" id="1_hvnqj"]
 [ext_resource type="Script" uid="uid://caer02wci8c5m" path="res://FieldSlot.gd" id="1_ttbo7"]
 [ext_resource type="Script" uid="uid://jhfijs2op1o0" path="res://PileBody.gd" id="2_hvnqj"]
+[ext_resource type="Texture2D" uid="uid://d0ci1kvw8k1ub" path="res://ui/BagGround.png" id="2_sflmd"]
 [ext_resource type="Script" uid="uid://cucvr6flq0pnh" path="res://PlayerStatusUI.gd" id="2_teshm"]
 [ext_resource type="Script" uid="uid://cekgm10rr0pgv" path="res://ShieldpointUI.gd" id="3_7pwqm"]
+[ext_resource type="Texture2D" uid="uid://cd3s0c12cnw1u" path="res://ui/buttons/turn.png" id="4_donlu"]
+[ext_resource type="Texture2D" uid="uid://dda4wn5132qlq" path="res://ui/PlayerUI/PlayerHP.png" id="4_mgovn"]
 [ext_resource type="Script" uid="uid://dn18qq8qol5pf" path="res://FinalObjective.gd" id="4_musxc"]
+[ext_resource type="Texture2D" uid="uid://crby1vmd2ptcw" path="res://ui/Deck.PNG" id="7_8n4bb"]
+[ext_resource type="Texture2D" uid="uid://cir1mp51c1q5g" path="res://ui/playerfield.png" id="7_xj46k"]
+[ext_resource type="Texture2D" uid="uid://dnpdn4hsisbvm" path="res://ui/buttons/DeckButton.png" id="8_bo8s1"]
+[ext_resource type="Texture2D" uid="uid://temi7e65pm4b" path="res://ui/Destroy.PNG" id="8_ks08g"]
+[ext_resource type="Texture2D" uid="uid://ek5vkcrjhyb5" path="res://ui/field.png" id="8_xj46k"]
+[ext_resource type="Texture2D" uid="uid://c3l3ds5cjmyof" path="res://ui/buttons/D_Button.png" id="9_n8a8r"]
+[ext_resource type="Texture2D" uid="uid://n5ui5iga5472" path="res://ui/M_Zone4.png" id="10_1u76d"]
+[ext_resource type="Texture2D" uid="uid://bcw6tnxhwnmp5" path="res://ui/TurnNumber.png" id="14_sflmd"]
+[ext_resource type="Texture2D" uid="uid://bq8va78jv32bs" path="res://ui/TurnSkill.png" id="16_npxts"]
+[ext_resource type="Texture2D" uid="uid://dnso73830mmvq" path="res://ui/End EnemyHP.png" id="16_pfdgg"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k6106"]
 corner_radius_top_left = 103
@@ -21,7 +34,7 @@ final_objective_path = NodePath("Layer3_Bossfield/FinalObjective")
 [node name="BackgroundLayer" type="CanvasLayer" parent="." unique_id=282893741]
 layer = -1
 
-[node name="BattleBackgroundGuide" type="ColorRect" parent="BackgroundLayer" unique_id=1994505478]
+[node name="BattleBackgroundGuide" type="TextureRect" parent="BackgroundLayer" unique_id=1755770899]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -31,6 +44,7 @@ offset_right = 3.0
 offset_bottom = -3.0
 grow_horizontal = 2
 grow_vertical = 2
+texture = ExtResource("2_sflmd")
 
 [node name="Layer0_UI" type="Control" parent="." unique_id=1098662275]
 layout_mode = 3
@@ -55,7 +69,18 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2_teshm")
 
+[node name="TextureRect" type="TextureRect" parent="Layer0_UI/PlayerStatusUI" unique_id=2076381972]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_mgovn")
+expand_mode = 1
+
 [node name="Panel" type="Panel" parent="Layer0_UI/PlayerStatusUI" unique_id=580024691]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -65,10 +90,24 @@ grow_vertical = 2
 
 [node name="EndTurnButton" type="Button" parent="Layer0_UI" unique_id=892431246]
 layout_mode = 1
-offset_left = 1393.0
+offset_left = 1394.0
 offset_top = 8.0
-offset_right = 1585.0
-offset_bottom = 94.0
+offset_right = 1544.0
+offset_bottom = 93.0
+
+[node name="TextureRect" type="TextureRect" parent="Layer0_UI/EndTurnButton" unique_id=1305503300]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -23.0
+offset_top = -12.0
+offset_right = 32.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_donlu")
+expand_mode = 1
 
 [node name="PlayerStatusUI2" type="Control" parent="Layer0_UI" unique_id=921783073]
 layout_mode = 1
@@ -146,9 +185,9 @@ color = Color(0.21176471, 0.90588236, 0.16862746, 1)
 
 [node name="Deck" type="Control" parent="Layer1_PlayerField" unique_id=2098288125]
 anchors_preset = 0
-offset_left = 17.0
+offset_left = 60.0
 offset_top = 9.5
-offset_right = 167.0
+offset_right = 210.0
 offset_bottom = 230.5
 script = ExtResource("2_hvnqj")
 
@@ -161,18 +200,41 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.18822971, 0.5645077, 0.8487741, 1)
 
+[node name="TextureRect" type="TextureRect" parent="Layer1_PlayerField/Deck" unique_id=334902955]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("7_8n4bb")
+expand_mode = 1
+
 [node name="DeckInfoButton" type="Button" parent="Layer1_PlayerField" unique_id=990910932]
 layout_mode = 0
-offset_left = 22.0
-offset_top = -39.0
-offset_right = 76.0
-offset_bottom = 1.0
+offset_left = 63.0
+offset_top = -40.0
+offset_right = 117.0
+
+[node name="TextureRect" type="TextureRect" parent="Layer1_PlayerField/DeckInfoButton" unique_id=65291180]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -9.0
+offset_top = -4.0
+offset_right = 9.0
+offset_bottom = 6.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("8_bo8s1")
+expand_mode = 1
 
 [node name="Grave" type="Control" parent="Layer1_PlayerField" unique_id=922103344]
 anchors_preset = 0
-offset_left = 1429.0
+offset_left = 1400.0
 offset_top = 9.5
-offset_right = 1579.0
+offset_right = 1550.0
 offset_bottom = 230.5
 script = ExtResource("2_hvnqj")
 pile_type = "grave"
@@ -186,12 +248,31 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.18822971, 0.5645077, 0.8487741, 1)
 
+[node name="TextureRect" type="TextureRect" parent="Layer1_PlayerField/Grave" unique_id=1662932403]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("8_ks08g")
+expand_mode = 1
+
 [node name="GraveInfoButton" type="Button" parent="Layer1_PlayerField" unique_id=502718105]
 layout_mode = 0
-offset_left = 1525.0
-offset_top = -39.0
-offset_right = 1579.0
-offset_bottom = 1.0
+offset_left = 1497.0
+offset_top = -40.0
+offset_right = 1551.0
+
+[node name="TextureRect" type="TextureRect" parent="Layer1_PlayerField/GraveInfoButton" unique_id=449464193]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("9_n8a8r")
+expand_mode = 1
 
 [node name="P_SlotStation" type="Control" parent="Layer1_PlayerField" unique_id=525145021]
 layout_mode = 1
@@ -200,80 +281,84 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -566.0
-offset_top = -120.0
-offset_right = 566.0
-offset_bottom = 120.0
+offset_left = -570.0
+offset_top = -140.0
+offset_right = 570.0
+offset_bottom = 140.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="P_SlotStation_Ground" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation" unique_id=1922190740]
+[node name="P_SlotStation_Ground" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation" unique_id=878583448]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.22745098, 1, 0.14901961, 1)
+texture = ExtResource("7_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot7" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=1370782413]
 layout_mode = 1
-anchors_preset = 1
+anchors_preset = 6
 anchor_left = 1.0
+anchor_top = 0.5
 anchor_right = 1.0
-offset_left = -149.0
-offset_top = 9.5
-offset_right = 1.0
-offset_bottom = 230.5
+anchor_bottom = 0.5
+offset_left = -165.0
+offset_top = -110.5
+offset_right = -15.0
+offset_bottom = 110.5
 grow_horizontal = 0
+grow_vertical = 2
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot7" unique_id=1658428448]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot7" unique_id=376819093]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot6" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=670769001]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 819.0
-offset_top = 9.5
-offset_right = 969.0
-offset_bottom = 230.5
+offset_left = 815.0
+offset_top = 29.5
+offset_right = 965.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot6" unique_id=1717407949]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot6" unique_id=1090308185]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot5" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=1532577732]
 anchors_preset = 0
 offset_left = 655.0
-offset_top = 9.5
+offset_top = 29.5
 offset_right = 805.0
-offset_bottom = 230.5
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot5" unique_id=1779634645]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot5" unique_id=1225451798]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot4" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=1822703205]
 layout_mode = 1
@@ -290,69 +375,70 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot4" unique_id=1164732614]
-visible = false
+[node name="ColorRect" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot4" unique_id=709068869]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot3" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=96977712]
 anchors_preset = 0
-offset_left = 328.0
-offset_top = 9.5
-offset_right = 478.0
-offset_bottom = 230.5
+offset_left = 335.0
+offset_top = 29.5
+offset_right = 485.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot3" unique_id=2045756364]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot3" unique_id=1769897604]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot2" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=1706856696]
 anchors_preset = 0
-offset_left = 164.0
-offset_top = 9.5
-offset_right = 314.0
-offset_bottom = 230.5
+offset_left = 175.0
+offset_top = 29.5
+offset_right = 325.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot2" unique_id=827977535]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot2" unique_id=1946169876]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="PlayerSlot1" type="Control" parent="Layer1_PlayerField/P_SlotStation" unique_id=1444764910]
 layout_mode = 1
 anchors_preset = 0
-offset_top = 9.5
-offset_right = 150.0
-offset_bottom = 230.5
+offset_left = 15.0
+offset_top = 29.5
+offset_right = 165.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot1" unique_id=1897045820]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer1_PlayerField/P_SlotStation/PlayerSlot1" unique_id=2077576413]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="Layer2_MonsterField" type="Control" parent="." unique_id=127411888]
 layout_mode = 3
@@ -380,81 +466,81 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -566.0
-offset_top = -120.0
-offset_right = 566.0
-offset_bottom = 120.0
+offset_left = -564.5
+offset_top = -158.0
+offset_right = 575.5
+offset_bottom = 107.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="P_SlotStation_Ground" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation" unique_id=1732806683]
-visible = false
+[node name="M_SlotStation_Ground" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation" unique_id=1265337593]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.8627451, 0.07058824, 0.14901961, 1)
+texture = ExtResource("10_1u76d")
+expand_mode = 1
 
 [node name="MonsterSlot7" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=260249225]
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -149.0
-offset_top = 9.5
-offset_right = 1.0
-offset_bottom = 230.5
+offset_left = -165.0
+offset_top = 29.5
+offset_right = -15.0
+offset_bottom = 250.5
 grow_horizontal = 0
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot7" unique_id=1495262738]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot7" unique_id=638613064]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="MonsterSlot6" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=1584895409]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 819.0
-offset_top = 9.5
-offset_right = 969.0
-offset_bottom = 230.5
+offset_left = 815.0
+offset_top = 29.5
+offset_right = 965.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot6" unique_id=865931604]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot6" unique_id=1117188282]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="MonsterSlot5" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=1426679930]
 anchors_preset = 0
 offset_left = 655.0
-offset_top = 9.5
+offset_top = 29.5
 offset_right = 805.0
-offset_bottom = 230.5
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot5" unique_id=1178978591]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot5" unique_id=1714783054]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="MonsterSlot4" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=169386187]
 layout_mode = 1
@@ -464,76 +550,77 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -75.0
-offset_top = -110.5
+offset_top = -103.0
 offset_right = 75.0
-offset_bottom = 110.5
+offset_bottom = 118.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot4" unique_id=1349905421]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot4" unique_id=1836620330]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="MonsterSlot3" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=81689464]
 anchors_preset = 0
-offset_left = 328.0
-offset_top = 9.5
-offset_right = 478.0
-offset_bottom = 230.5
+offset_left = 335.0
+offset_top = 29.5
+offset_right = 485.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot3" unique_id=1578340058]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot3" unique_id=1758036489]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="MonsterSlot2" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=1771280900]
 anchors_preset = 0
-offset_left = 164.0
-offset_top = 9.5
-offset_right = 314.0
-offset_bottom = 230.5
+offset_left = 175.0
+offset_top = 29.5
+offset_right = 325.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot2" unique_id=607154510]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot2" unique_id=533595760]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="MonsterSlot1" type="Control" parent="Layer2_MonsterField/M_SlotStation" unique_id=923209461]
 layout_mode = 1
 anchors_preset = 0
-offset_top = 9.5
-offset_right = 150.0
-offset_bottom = 230.5
+offset_left = 15.0
+offset_top = 29.5
+offset_right = 165.0
+offset_bottom = 250.5
 script = ExtResource("1_ttbo7")
 
-[node name="ColorRect" type="ColorRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot1" unique_id=1129038640]
-visible = false
+[node name="ColorRect2" type="TextureRect" parent="Layer2_MonsterField/M_SlotStation/MonsterSlot1" unique_id=1000420600]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.18822971, 0.5645077, 0.8487741, 1)
+texture = ExtResource("8_xj46k")
+expand_mode = 1
 
 [node name="Layer3_Bossfield" type="Control" parent="." unique_id=1559449607]
 layout_mode = 3
@@ -559,8 +646,9 @@ anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -111.5
+offset_top = 10.0
 offset_right = 111.5
-offset_bottom = 260.0
+offset_bottom = 240.0
 grow_horizontal = 2
 
 [node name="ColorRect" type="ColorRect" parent="Layer3_Bossfield/Boss" unique_id=1858307388]
@@ -581,10 +669,21 @@ anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -177.0
-offset_top = -48.0
+offset_top = -68.0
 offset_right = 177.0
+offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
+
+[node name="TextureRect" type="TextureRect" parent="Layer3_Bossfield/BossInfoBar" unique_id=2058675381]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("16_pfdgg")
+expand_mode = 1
 
 [node name="Panel" type="Panel" parent="Layer3_Bossfield/BossInfoBar" unique_id=2091224121]
 layout_mode = 1
@@ -593,11 +692,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-
-[node name="TextureRect" type="TextureRect" parent="Layer3_Bossfield/BossInfoBar" unique_id=2058675381]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
 
 [node name="TurnStartSkillUI" type="Control" parent="Layer3_Bossfield" unique_id=2033489466]
 anchors_preset = 0
@@ -621,10 +715,15 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_k6106")
 
-[node name="SkillIcon (TextureRect)" type="TextureRect" parent="Layer3_Bossfield/TurnStartSkillUI" unique_id=1306349516]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+[node name="SkillIcon (TextureRect)" type="TextureRect" parent="Layer3_Bossfield/TurnStartSkillUI/Background" unique_id=1306349516]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("16_npxts")
+expand_mode = 1
 
 [node name="TurnStartSkillUI2" type="Control" parent="Layer3_Bossfield" unique_id=858518554]
 anchors_preset = 0
@@ -641,10 +740,15 @@ offset_right = 157.0
 offset_bottom = 157.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_k6106")
 
-[node name="SkillIcon (TextureRect)" type="TextureRect" parent="Layer3_Bossfield/TurnStartSkillUI2" unique_id=1021839010]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+[node name="SkillIcon (TextureRect)" type="TextureRect" parent="Layer3_Bossfield/TurnStartSkillUI2/Background" unique_id=1021839010]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("16_npxts")
+expand_mode = 1
 
 [node name="FinalObjective" type="Node" parent="Layer3_Bossfield" unique_id=342393970]
 script = ExtResource("4_musxc")
@@ -656,14 +760,13 @@ layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = 470.5
+offset_left = 465.5
 offset_top = 125.0
-offset_right = 707.5
+offset_right = 702.5
 offset_bottom = 206.0
 grow_horizontal = 2
 
-[node name="ColorRect" type="ColorRect" parent="Layer3_Bossfield/TurnNumber" unique_id=1952845718]
-visible = false
+[node name="ColorRect" type="TextureRect" parent="Layer3_Bossfield/TurnNumber" unique_id=498054847]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -674,4 +777,5 @@ offset_right = -1.0
 offset_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07058824, 1, 1, 1)
+texture = ExtResource("14_sflmd")
+expand_mode = 1

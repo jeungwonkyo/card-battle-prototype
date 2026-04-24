@@ -1,24 +1,35 @@
 extends Node
 
+const TRIGGER_TURN_START: String = "turn_start"
+const TRIGGER_TURN_END: String = "turn_end"
+
+const HP_BAR_FILL_COLOR: Color = Color(0.86, 0.22, 0.22, 1.0)
+const HP_BAR_PREVIEW_LOSS_COLOR: Color = Color(0.50, 0.50, 0.50, 0.96)
+
 @export var start_hp: int = 40
 @export_node_path("Control") var objective_root_path: NodePath
 @export_node_path("Control") var objective_info_bar_path: NodePath
 
+var max_hp: int = 0
 var current_hp: int = 0
+var preview_hp: int = 0
+var is_hp_preview_visible: bool = false
 
 var objective_root: Control = null
 var objective_info_bar: Control = null
 
 var objective_name_label: Label = null
 var objective_hp_label: Label = null
+var objective_hp_fill_rect: ColorRect = null
+var objective_hp_preview_loss_rect: ColorRect = null
 var objective_highlight_panel: Panel = null
 
-var objective_hp_gauge_root: Control = null
-var objective_hp_gauge_bg: ColorRect = null
-var objective_hp_gauge_fill: ColorRect = null
-var objective_hp_gauge_preview_overlay: ColorRect = null
-
-var current_preview_after_hp: int = -1
+var skill_id_by_trigger: Dictionary = {}
+var skill_ui_root_by_trigger: Dictionary = {}
+var skill_name_label_by_trigger: Dictionary = {}
+var skill_short_label_by_trigger: Dictionary = {}
+var skill_trigger_label_by_trigger: Dictionary = {}
+var skill_flash_overlay_by_trigger: Dictionary = {}
 
 
 func _ready() -> void:
@@ -28,11 +39,22 @@ func _ready() -> void:
 
 
 func initialize() -> void:
-	current_hp = max(0, start_hp)
+	max_hp = max(0, start_hp)
+	current_hp = max_hp
+	preview_hp = current_hp
+	is_hp_preview_visible = false
+
+	skill_id_by_trigger.clear()
+	skill_id_by_trigger[TRIGGER_TURN_START] = "turn_start_none"
+	skill_id_by_trigger[TRIGGER_TURN_END] = "turn_end_none"
+
 	_ensure_objective_name_label()
-	_ensure_objective_hp_gauge()
 	_ensure_objective_hp_label()
 	_ensure_objective_highlight_panel()
+	_ensure_skill_ui_by_trigger(TRIGGER_TURN_START)
+	_ensure_skill_ui_by_trigger(TRIGGER_TURN_END)
+	_set_default_skill_ui_text(TRIGGER_TURN_START)
+	_set_default_skill_ui_text(TRIGGER_TURN_END)
 	_refresh_ui()
 
 
@@ -53,91 +75,43 @@ func _ensure_objective_name_label() -> void:
 		found_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		found_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		found_label.add_theme_font_size_override("font_size", 28)
-		found_label.add_theme_color_override("font_color", Color(1, 0.92, 0.92, 1))
-		found_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		found_label.add_theme_constant_override("outline_size", 2)
 		objective_root.add_child(found_label)
 
 	objective_name_label = found_label
 
 
-func _ensure_objective_hp_gauge() -> void:
-	if objective_info_bar == null:
-		return
-
-	var found_root: Control = objective_info_bar.get_node_or_null("FinalObjectiveHpGaugeRoot") as Control
-	if found_root == null:
-		found_root = Control.new()
-		found_root.name = "FinalObjectiveHpGaugeRoot"
-		found_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-		found_root.offset_left = 0.0
-		found_root.offset_top = 0.0
-		found_root.offset_right = 0.0
-		found_root.offset_bottom = 0.0
-		found_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		found_root.z_index = 5
-		objective_info_bar.add_child(found_root)
-
-	objective_hp_gauge_root = found_root
-
-	var found_bg: ColorRect = objective_hp_gauge_root.get_node_or_null("FinalObjectiveHpGaugeBg") as ColorRect
-	if found_bg == null:
-		found_bg = ColorRect.new()
-		found_bg.name = "FinalObjectiveHpGaugeBg"
-		found_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-		found_bg.offset_left = 0.0
-		found_bg.offset_top = 0.0
-		found_bg.offset_right = 0.0
-		found_bg.offset_bottom = 0.0
-		found_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		found_bg.color = Color(0.48, 0.48, 0.48, 1.0)
-		objective_hp_gauge_root.add_child(found_bg)
-
-	objective_hp_gauge_bg = found_bg
-
-	var found_fill: ColorRect = objective_hp_gauge_root.get_node_or_null("FinalObjectiveHpGaugeFill") as ColorRect
-	if found_fill == null:
-		found_fill = ColorRect.new()
-		found_fill.name = "FinalObjectiveHpGaugeFill"
-		found_fill.anchor_left = 0.0
-		found_fill.anchor_top = 0.0
-		found_fill.anchor_right = 0.0
-		found_fill.anchor_bottom = 1.0
-		found_fill.offset_left = 0.0
-		found_fill.offset_top = 0.0
-		found_fill.offset_right = 0.0
-		found_fill.offset_bottom = 0.0
-		found_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		found_fill.color = Color(0.84, 0.20, 0.20, 1.0)
-		found_fill.z_index = 1
-		objective_hp_gauge_root.add_child(found_fill)
-
-	objective_hp_gauge_fill = found_fill
-
-	var found_preview: ColorRect = objective_hp_gauge_root.get_node_or_null("FinalObjectiveHpGaugePreviewOverlay") as ColorRect
-	if found_preview == null:
-		found_preview = ColorRect.new()
-		found_preview.name = "FinalObjectiveHpGaugePreviewOverlay"
-		found_preview.anchor_left = 0.0
-		found_preview.anchor_top = 0.0
-		found_preview.anchor_right = 0.0
-		found_preview.anchor_bottom = 1.0
-		found_preview.offset_left = 0.0
-		found_preview.offset_top = 0.0
-		found_preview.offset_right = 0.0
-		found_preview.offset_bottom = 0.0
-		found_preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		found_preview.color = Color(0.32, 0.32, 0.32, 0.92)
-		found_preview.visible = false
-		found_preview.z_index = 2
-		objective_hp_gauge_root.add_child(found_preview)
-
-	objective_hp_gauge_preview_overlay = found_preview
-
-
 func _ensure_objective_hp_label() -> void:
 	if objective_info_bar == null:
 		return
+
+	var found_fill_rect: ColorRect = objective_info_bar.get_node_or_null("FinalObjectiveHpFillRect") as ColorRect
+	if found_fill_rect == null:
+		found_fill_rect = ColorRect.new()
+		found_fill_rect.name = "FinalObjectiveHpFillRect"
+		found_fill_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		found_fill_rect.offset_left = 0.0
+		found_fill_rect.offset_top = 0.0
+		found_fill_rect.offset_right = 0.0
+		found_fill_rect.offset_bottom = 0.0
+		found_fill_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		found_fill_rect.color = HP_BAR_FILL_COLOR
+		objective_info_bar.add_child(found_fill_rect)
+
+	var found_preview_loss_rect: ColorRect = objective_info_bar.get_node_or_null("FinalObjectiveHpPreviewLossRect") as ColorRect
+	if found_preview_loss_rect == null:
+		found_preview_loss_rect = ColorRect.new()
+		found_preview_loss_rect.name = "FinalObjectiveHpPreviewLossRect"
+		found_preview_loss_rect.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		found_preview_loss_rect.anchor_right = 0.0
+		found_preview_loss_rect.anchor_bottom = 1.0
+		found_preview_loss_rect.offset_left = 0.0
+		found_preview_loss_rect.offset_top = 0.0
+		found_preview_loss_rect.offset_right = 0.0
+		found_preview_loss_rect.offset_bottom = 0.0
+		found_preview_loss_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		found_preview_loss_rect.visible = false
+		found_preview_loss_rect.color = HP_BAR_PREVIEW_LOSS_COLOR
+		objective_info_bar.add_child(found_preview_loss_rect)
 
 	var found_label: Label = objective_info_bar.get_node_or_null("FinalObjectiveHpLabel") as Label
 	if found_label == null:
@@ -152,13 +126,17 @@ func _ensure_objective_hp_label() -> void:
 		found_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		found_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		found_label.add_theme_font_size_override("font_size", 24)
-		found_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		found_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-		found_label.add_theme_constant_override("outline_size", 2)
-		found_label.z_index = 10
 		objective_info_bar.add_child(found_label)
 
+	objective_hp_fill_rect = found_fill_rect
+	objective_hp_preview_loss_rect = found_preview_loss_rect
 	objective_hp_label = found_label
+
+	var background_panel: Panel = objective_info_bar.get_node_or_null("Panel") as Panel
+	if background_panel != null:
+		background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	objective_info_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _ensure_objective_highlight_panel() -> void:
@@ -192,117 +170,201 @@ func _ensure_objective_highlight_panel() -> void:
 	objective_highlight_panel = found_panel
 
 
+func _ensure_skill_ui_by_trigger(trigger_type: String) -> void:
+	var skill_ui_root: Control = _get_or_find_skill_ui_root(trigger_type)
+	if skill_ui_root == null:
+		return
+
+	var ui_container: Control = skill_ui_root.get_node_or_null("Background") as Control
+	if ui_container == null:
+		ui_container = skill_ui_root
+
+	var name_label: Label = ui_container.get_node_or_null("SkillNameLabel") as Label
+	if name_label == null:
+		name_label = Label.new()
+		name_label.name = "SkillNameLabel"
+		name_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		name_label.offset_left = 8.0
+		name_label.offset_top = 12.0
+		name_label.offset_right = -8.0
+		name_label.offset_bottom = -88.0
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_label.add_theme_font_size_override("font_size", 18)
+		ui_container.add_child(name_label)
+
+	var short_label: Label = ui_container.get_node_or_null("SkillShortTextLabel") as Label
+	if short_label == null:
+		short_label = Label.new()
+		short_label.name = "SkillShortTextLabel"
+		short_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		short_label.offset_left = 8.0
+		short_label.offset_top = 56.0
+		short_label.offset_right = -8.0
+		short_label.offset_bottom = -30.0
+		short_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		short_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		short_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		short_label.add_theme_font_size_override("font_size", 42)
+		ui_container.add_child(short_label)
+
+	var trigger_label: Label = ui_container.get_node_or_null("SkillTriggerLabel") as Label
+	if trigger_label == null:
+		trigger_label = Label.new()
+		trigger_label.name = "SkillTriggerLabel"
+		trigger_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		trigger_label.offset_left = 8.0
+		trigger_label.offset_top = 110.0
+		trigger_label.offset_right = -8.0
+		trigger_label.offset_bottom = -6.0
+		trigger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		trigger_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		trigger_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		trigger_label.add_theme_font_size_override("font_size", 14)
+		ui_container.add_child(trigger_label)
+
+	var flash_overlay: ColorRect = skill_ui_root.get_node_or_null("SkillFlashOverlay") as ColorRect
+	if flash_overlay == null:
+		flash_overlay = ColorRect.new()
+		flash_overlay.name = "SkillFlashOverlay"
+		flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+		flash_overlay.offset_left = 0.0
+		flash_overlay.offset_top = 0.0
+		flash_overlay.offset_right = 0.0
+		flash_overlay.offset_bottom = 0.0
+		flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		flash_overlay.visible = false
+		flash_overlay.color = Color(1.0, 0.95, 0.35, 0.0)
+		flash_overlay.z_index = 100
+		skill_ui_root.add_child(flash_overlay)
+
+	skill_name_label_by_trigger[trigger_type] = name_label
+	skill_short_label_by_trigger[trigger_type] = short_label
+	skill_trigger_label_by_trigger[trigger_type] = trigger_label
+	skill_flash_overlay_by_trigger[trigger_type] = flash_overlay
+
+
+func _get_or_find_skill_ui_root(trigger_type: String) -> Control:
+	if skill_ui_root_by_trigger.has(trigger_type):
+		var saved_root: Control = skill_ui_root_by_trigger.get(trigger_type) as Control
+		if saved_root != null and is_instance_valid(saved_root):
+			return saved_root
+
+	var found_root: Control = null
+
+	match trigger_type:
+		TRIGGER_TURN_START:
+			found_root = get_node_or_null("../TurnStartSkillUI") as Control
+
+		TRIGGER_TURN_END:
+			found_root = get_node_or_null("../TurnEndSkillUI") as Control
+			if found_root == null:
+				found_root = get_node_or_null("../TurnStartSkillUI2") as Control
+
+	if found_root != null:
+		skill_ui_root_by_trigger[trigger_type] = found_root
+
+	return found_root
+
+
+func _set_default_skill_ui_text(trigger_type: String) -> void:
+	var name_label: Label = skill_name_label_by_trigger.get(trigger_type, null) as Label
+	var short_label: Label = skill_short_label_by_trigger.get(trigger_type, null) as Label
+	var trigger_label: Label = skill_trigger_label_by_trigger.get(trigger_type, null) as Label
+
+	if name_label != null:
+		name_label.text = "없음"
+
+	if short_label != null:
+		short_label.text = "-"
+
+	if trigger_label != null:
+		trigger_label.text = _get_trigger_display_name(trigger_type)
+
+
 func _refresh_ui() -> void:
 	if objective_name_label != null:
 		objective_name_label.text = "최종목표"
 
-	if objective_hp_label != null:
-		objective_hp_label.text = "HP %d / %d" % [current_hp, max(1, start_hp)]
-
-	_refresh_hp_gauge_visuals()
+	_refresh_hp_ui()
 
 
-func _refresh_hp_gauge_visuals() -> void:
-	if objective_hp_gauge_root == null:
-		return
-	if objective_hp_gauge_fill == null:
+func _refresh_hp_ui() -> void:
+	if objective_info_bar == null:
 		return
 
-	var gauge_width: float = objective_hp_gauge_root.size.x
-	var fill_width: float = _get_hp_width_by_value(current_hp)
+	var safe_max_hp: int = max(1, max_hp)
+	var clamped_current_hp: int = clamp(current_hp, 0, max_hp)
+	var displayed_hp: int = clamped_current_hp
 
-	objective_hp_gauge_fill.position = Vector2.ZERO
-	objective_hp_gauge_fill.size = Vector2(fill_width, objective_hp_gauge_root.size.y)
+	if is_hp_preview_visible:
+		displayed_hp = clamp(preview_hp, 0, clamped_current_hp)
 
-	if objective_hp_gauge_preview_overlay != null and objective_hp_gauge_preview_overlay.visible:
-		_update_preview_overlay_visual(current_preview_after_hp)
-
-
-func _get_hp_width_by_value(value: int) -> float:
-	if objective_hp_gauge_root == null:
-		return 0.0
-
-	var max_hp: int = max(1, start_hp)
-	var clamped_value: int = clamp(value, 0, max_hp)
-	return objective_hp_gauge_root.size.x * (float(clamped_value) / float(max_hp))
-
-
-func show_hp_preview(after_hp: int) -> void:
-	if objective_hp_gauge_preview_overlay == null:
+	var total_width: float = objective_info_bar.get_global_rect().size.x
+	if total_width <= 0.0:
+		total_width = objective_info_bar.size.x
+	if total_width <= 0.0:
+		call_deferred("_refresh_hp_ui")
 		return
 
-	var preview_hp: int = clamp(after_hp, 0, current_hp)
+	var current_ratio: float = float(clamped_current_hp) / float(safe_max_hp)
+	var displayed_ratio: float = float(displayed_hp) / float(safe_max_hp)
+	var current_width: float = total_width * current_ratio
+	var displayed_width: float = total_width * displayed_ratio
 
-	if preview_hp >= current_hp:
-		clear_hp_preview()
-		return
+	if objective_hp_fill_rect != null:
+		objective_hp_fill_rect.color = HP_BAR_FILL_COLOR
+		objective_hp_fill_rect.anchor_left = 0.0
+		objective_hp_fill_rect.anchor_top = 0.0
+		objective_hp_fill_rect.anchor_right = 0.0
+		objective_hp_fill_rect.anchor_bottom = 1.0
+		objective_hp_fill_rect.offset_left = 0.0
+		objective_hp_fill_rect.offset_top = 0.0
+		objective_hp_fill_rect.offset_right = current_width
+		objective_hp_fill_rect.offset_bottom = 0.0
+		objective_hp_fill_rect.visible = clamped_current_hp > 0
 
-	current_preview_after_hp = preview_hp
-	objective_hp_gauge_preview_overlay.visible = true
-	_update_preview_overlay_visual(preview_hp)
-
-	if objective_hp_label != null:
-		objective_hp_label.text = "HP %d → %d / %d" % [current_hp, preview_hp, max(1, start_hp)]
-
-
-func _update_preview_overlay_visual(after_hp: int) -> void:
-	if objective_hp_gauge_root == null:
-		return
-	if objective_hp_gauge_preview_overlay == null:
-		return
-
-	var current_width: float = _get_hp_width_by_value(current_hp)
-	var after_width: float = _get_hp_width_by_value(after_hp)
-	var preview_width: float = maxf(0.0, current_width - after_width)
-
-	objective_hp_gauge_preview_overlay.position = Vector2(after_width, 0.0)
-	objective_hp_gauge_preview_overlay.size = Vector2(preview_width, objective_hp_gauge_root.size.y)
-	objective_hp_gauge_preview_overlay.modulate = Color(1, 1, 1, 1)
-
-
-func clear_hp_preview() -> void:
-	current_preview_after_hp = -1
-
-	if objective_hp_gauge_preview_overlay != null:
-		objective_hp_gauge_preview_overlay.visible = false
-		objective_hp_gauge_preview_overlay.position = Vector2.ZERO
-		objective_hp_gauge_preview_overlay.size = Vector2.ZERO
-		objective_hp_gauge_preview_overlay.modulate = Color(1, 1, 1, 1)
+	if objective_hp_preview_loss_rect != null:
+		var preview_loss_width: float = max(0.0, current_width - displayed_width)
+		objective_hp_preview_loss_rect.color = HP_BAR_PREVIEW_LOSS_COLOR
+		objective_hp_preview_loss_rect.offset_left = displayed_width
+		objective_hp_preview_loss_rect.offset_top = 0.0
+		objective_hp_preview_loss_rect.offset_right = preview_loss_width
+		objective_hp_preview_loss_rect.offset_bottom = 0.0
+		objective_hp_preview_loss_rect.visible = is_hp_preview_visible and preview_loss_width > 0.0
 
 	if objective_hp_label != null:
-		objective_hp_label.text = "HP %d / %d" % [current_hp, max(1, start_hp)]
-
-
-func play_hp_preview_confirm_animation(final_hp: int) -> void:
-	var next_hp: int = clamp(final_hp, 0, max(1, start_hp))
-
-	if objective_hp_gauge_fill == null:
-		current_hp = next_hp
-		_refresh_ui()
-		return
-
-	if objective_hp_gauge_preview_overlay == null or not objective_hp_gauge_preview_overlay.visible:
-		current_hp = next_hp
-		_refresh_ui()
-		return
-
-	var next_width: float = _get_hp_width_by_value(next_hp)
-
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(objective_hp_gauge_fill, "size", Vector2(next_width, objective_hp_gauge_root.size.y), 0.14)
-	tween.tween_property(objective_hp_gauge_preview_overlay, "modulate", Color(1, 1, 1, 0.0), 0.14)
-	await tween.finished
-
-	current_hp = next_hp
-	clear_hp_preview()
-	_refresh_ui()
+		if is_hp_preview_visible and displayed_hp != clamped_current_hp:
+			objective_hp_label.text = "HP %d >> %d/%d" % [clamped_current_hp, displayed_hp, max_hp]
+		else:
+			objective_hp_label.text = "HP %d/%d" % [clamped_current_hp, max_hp]
 
 
 func set_hp(value: int) -> void:
-	current_hp = max(0, value)
+	current_hp = clamp(value, 0, max_hp)
 	clear_hp_preview()
 	_refresh_ui()
+
+
+func show_hp_preview(_current_value: int, preview_value: int) -> void:
+	var clamped_preview_hp: int = clamp(preview_value, 0, current_hp)
+
+	if clamped_preview_hp == current_hp:
+		clear_hp_preview()
+		return
+
+	preview_hp = clamped_preview_hp
+	is_hp_preview_visible = true
+	_refresh_hp_ui()
+
+
+func clear_hp_preview() -> void:
+	preview_hp = current_hp
+	is_hp_preview_visible = false
+	_refresh_hp_ui()
+
 
 func set_highlight(is_on: bool) -> void:
 	if objective_highlight_panel == null:
@@ -310,14 +372,82 @@ func set_highlight(is_on: bool) -> void:
 
 	objective_highlight_panel.visible = is_on
 
+
 func get_objective_rect() -> Rect2:
 	if objective_root == null:
 		return Rect2()
 
 	return objective_root.get_global_rect()
 
+
 func get_action_motion_target() -> Control:
 	return objective_root
 
+
 func get_hp() -> int:
 	return current_hp
+
+
+func get_max_hp() -> int:
+	return max_hp
+
+
+func set_skill_id_by_trigger(trigger_type: String, skill_id: String) -> void:
+	if trigger_type != TRIGGER_TURN_START and trigger_type != TRIGGER_TURN_END:
+		print("최종목표 스킬 저장 실패 / 알 수 없는 trigger:", trigger_type)
+		return
+
+	skill_id_by_trigger[trigger_type] = skill_id
+
+
+func get_skill_id_by_trigger(trigger_type: String) -> String:
+	return String(skill_id_by_trigger.get(trigger_type, ""))
+
+
+func set_skill_display(trigger_type: String, display_name: String, short_text: String) -> void:
+	_ensure_skill_ui_by_trigger(trigger_type)
+
+	var name_label: Label = skill_name_label_by_trigger.get(trigger_type, null) as Label
+	var short_label: Label = skill_short_label_by_trigger.get(trigger_type, null) as Label
+	var trigger_label: Label = skill_trigger_label_by_trigger.get(trigger_type, null) as Label
+
+	if name_label != null:
+		name_label.text = display_name
+
+	if short_label != null:
+		short_label.text = short_text
+
+	if trigger_label != null:
+		trigger_label.text = _get_trigger_display_name(trigger_type)
+
+
+func play_skill_ui_trigger_feedback(trigger_type: String) -> void:
+	_ensure_skill_ui_by_trigger(trigger_type)
+
+	var flash_overlay: ColorRect = skill_flash_overlay_by_trigger.get(trigger_type, null) as ColorRect
+	if flash_overlay == null:
+		return
+
+	flash_overlay.visible = true
+	flash_overlay.color = Color(1.0, 0.95, 0.35, 0.82)
+	flash_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
+
+	var tween: Tween = create_tween()
+	tween.tween_property(flash_overlay, "modulate:a", 1.0, 0.08)
+	tween.tween_property(flash_overlay, "modulate:a", 0.0, 0.2)
+	tween.finished.connect(
+		func() -> void:
+			if flash_overlay != null and is_instance_valid(flash_overlay):
+				flash_overlay.visible = false
+	)
+
+
+func _get_trigger_display_name(trigger_type: String) -> String:
+	match trigger_type:
+		TRIGGER_TURN_START:
+			return "턴 시작"
+
+		TRIGGER_TURN_END:
+			return "턴 종료"
+
+	return trigger_type
