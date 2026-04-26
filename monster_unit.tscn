@@ -1,10 +1,13 @@
 [gd_scene format=3 uid="uid://b51g7vj7txwqr"]
 
+[ext_resource type="Script" uid="uid://colm12aw6btb4" path="res://MonsterUnit.gd" id="1_4crhq"]
+
 [node name="monster_unit" type="Control" unique_id=935253986]
 layout_mode = 3
 anchors_preset = 0
 offset_right = 150.0
 offset_bottom = 221.0
+script = ExtResource("1_4crhq")
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=213460209]
 custom_minimum_size = Vector2(150, 221)
@@ -13,11 +16,21 @@ offset_right = 40.0
 offset_bottom = 40.0
 
 [node name="MonsterImagePanel" type="Panel" parent="." unique_id=680387764]
-layout_mode = 0
-offset_left = 12.0
-offset_top = 10.0
-offset_right = 138.0
-offset_bottom = 125.0
+clip_contents = true
+layout_mode = 1
+offset_right = 150.0
+offset_bottom = 150.0
+
+[node name="MonsterImageTexture" type="TextureRect" parent="MonsterImagePanel" unique_id=1561908989]
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 6
 
 [node name="MonsterImageLabel" type="Label" parent="MonsterImagePanel" unique_id=1631243714]
 layout_mode = 1
@@ -50,6 +63,7 @@ offset_top = -23.0
 offset_right = 37.0
 offset_bottom = 21.0
 grow_vertical = 2
+theme_override_font_sizes/font_size = 28
 
 [node name="MonsterAttackLabel" type="Label" parent="MonsterImagePanel/MonsterAttackSymbol" unique_id=1679103550]
 layout_mode = 1
@@ -58,11 +72,14 @@ anchor_left = 1.0
 anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
-offset_left = -44.0
-offset_top = -22.0
-offset_bottom = 22.0
+offset_left = -29.0
+offset_top = -23.0
+offset_right = 15.0
+offset_bottom = 21.0
 grow_horizontal = 0
 grow_vertical = 2
+theme_override_colors/font_color = Color(0.06666667, 0.06666667, 0.06666667, 1)
+theme_override_font_sizes/font_size = 28
 
 [node name="MonsterEffectSymbol" type="Label" parent="MonsterImagePanel" unique_id=1392434598]
 layout_mode = 1
@@ -93,61 +110,88 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -44.0
-offset_bottom = 44.0
+offset_left = -39.0
+offset_top = -9.0
+offset_right = 5.0
+offset_bottom = 46.0
 grow_horizontal = 0
+theme_override_font_sizes/font_size = 40
 
-[node name="MonsterLifelLabel" type="Label" parent="MonsterImagePanel/MonsterLifeBadgeSymbol" unique_id=283874171]
+[node name="MonsterLifeLabel" type="Label" parent="MonsterImagePanel/MonsterLifeBadgeSymbol" unique_id=283874171]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -22.0
-offset_top = -22.0
-offset_right = 22.0
-offset_bottom = 22.0
+offset_left = -0.5
+offset_top = -18.5
+offset_right = 0.5
+offset_bottom = 15.5
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_colors/font_color = Color(0.06666667, 0.06666667, 0.06666667, 1)
+theme_override_font_sizes/font_size = 22
+
+[node name="PreviewLifeBadgeSymbol" type="Label" parent="MonsterImagePanel" unique_id=1413429776]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -39.0
+offset_top = 30.0
+offset_right = 5.0
+offset_bottom = 85.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 40
+
+[node name="PreviewLifeLabel" type="Label" parent="MonsterImagePanel/PreviewLifeBadgeSymbol" unique_id=1479788654]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -0.5
+offset_top = -18.5
+offset_right = 0.5
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.06666667, 0.06666667, 0.06666667, 1)
+theme_override_colors/font_outline_color = Color(0.16862746, 0.12941177, 0.105882354, 1)
+theme_override_font_sizes/font_size = 22
 
 [node name="MonsterTextPanel" type="Panel" parent="." unique_id=127074905]
-layout_mode = 0
-offset_left = 12.0
-offset_top = 133.0
-offset_right = 138.0
-offset_bottom = 209.0
-
-[node name="MonsterTextMain" type="Label" parent="MonsterTextPanel" unique_id=259928125]
 layout_mode = 1
-anchors_preset = 5
+anchors_preset = 7
 anchor_left = 0.5
+anchor_top = 1.0
 anchor_right = 0.5
-offset_left = -63.0
-offset_right = 63.0
-offset_bottom = 24.0
+anchor_bottom = 1.0
+offset_left = -75.0
+offset_top = -76.0
+offset_right = 75.0
 grow_horizontal = 2
-theme_override_font_sizes/font_size = 12
-autowrap_mode = 3
+grow_vertical = 0
 
-[node name="Skill" type="Panel" parent="MonsterTextPanel/MonsterTextMain" unique_id=1997662451]
+[node name="TextBackground" type="ColorRect" parent="MonsterTextPanel" unique_id=619949824]
 layout_mode = 1
-anchors_preset = 4
-anchor_top = 0.5
-anchor_bottom = 0.5
-offset_top = -13.0
-offset_right = 31.0
-offset_bottom = 13.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
 grow_vertical = 2
+color = Color(0.18431373, 0.14901961, 0.12941177, 1)
 
-[node name="MonsterSummaryLabel" type="Label" parent="MonsterTextPanel" unique_id=1072657003]
+[node name="MonsterSummaryLabel" type="RichTextLabel" parent="MonsterTextPanel" unique_id=68398024]
 layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -63.0
-offset_right = 63.0
-offset_bottom = 76.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
-theme_override_font_sizes/font_size = 12
-autowrap_mode = 3
+grow_vertical = 2
+bbcode_enabled = true
+scroll_active = false
+horizontal_alignment = 1
+vertical_alignment = 1

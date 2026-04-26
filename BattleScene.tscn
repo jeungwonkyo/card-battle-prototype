@@ -18,7 +18,8 @@
 [ext_resource type="Texture2D" uid="uid://n5ui5iga5472" path="res://ui/M_Zone4.png" id="10_1u76d"]
 [ext_resource type="Texture2D" uid="uid://bcw6tnxhwnmp5" path="res://ui/TurnNumber.png" id="14_sflmd"]
 [ext_resource type="Texture2D" uid="uid://bq8va78jv32bs" path="res://ui/TurnSkill.png" id="16_npxts"]
-[ext_resource type="Texture2D" uid="uid://dnso73830mmvq" path="res://ui/End EnemyHP.png" id="16_pfdgg"]
+[ext_resource type="Texture2D" uid="uid://pmy7ronlyb66" path="res://ui/End EnemyHPCase.png" id="16_pfdgg"]
+[ext_resource type="Texture2D" uid="uid://dnso73830mmvq" path="res://ui/End EnemyHP.png" id="17_dvttb"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_k6106"]
 corner_radius_top_left = 103
@@ -651,15 +652,18 @@ offset_right = 111.5
 offset_bottom = 240.0
 grow_horizontal = 2
 
-[node name="ColorRect" type="ColorRect" parent="Layer3_Bossfield/Boss" unique_id=1858307388]
+[node name="FinalObjectiveImage" type="TextureRect" parent="Layer3_Bossfield/Boss" unique_id=257572776]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = -21.0
+offset_top = 9.0
+offset_right = 15.0
 offset_bottom = 2.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.07058824, 1, 1, 1)
+expand_mode = 1
 
 [node name="BossInfoBar" type="Control" parent="Layer3_Bossfield" unique_id=1057304546]
 layout_mode = 1
@@ -675,7 +679,7 @@ offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
 
-[node name="TextureRect" type="TextureRect" parent="Layer3_Bossfield/BossInfoBar" unique_id=2058675381]
+[node name="End EnemyHPCase" type="TextureRect" parent="Layer3_Bossfield/BossInfoBar" unique_id=1743777392]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -685,7 +689,36 @@ grow_vertical = 2
 texture = ExtResource("16_pfdgg")
 expand_mode = 1
 
+[node name="End EnemyHP" type="TextureRect" parent="Layer3_Bossfield/BossInfoBar" unique_id=2058675381]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -6.0
+offset_bottom = 4.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("17_dvttb")
+expand_mode = 1
+
+[node name="End EnemyHPback" type="TextureRect" parent="Layer3_Bossfield/BossInfoBar" unique_id=941422771]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -6.0
+offset_bottom = 4.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("17_dvttb")
+expand_mode = 1
+
 [node name="Panel" type="Panel" parent="Layer3_Bossfield/BossInfoBar" unique_id=2091224121]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

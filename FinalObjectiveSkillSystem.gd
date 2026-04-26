@@ -10,6 +10,10 @@ const EFFECT_APPLY_PLAYER_DEBUFF: String = "apply_player_debuff"
 const EFFECT_BUFF_ALL_MONSTERS: String = "buff_all_monsters"
 const EFFECT_SUMMON_MONSTER: String = "summon_monster"
 
+@export var skill_feedback_wait_seconds: float = 0.4
+@export var skill_effect_interval_seconds: float = 0.18
+@export var skill_end_wait_seconds: float = 0
+
 var battle_scene: Node = null
 var final_objective: Node = null
 var definitions_by_skill_id: Dictionary = {}
@@ -120,6 +124,8 @@ func run_trigger(trigger_type: String) -> void:
 	if final_objective.has_method("play_skill_ui_trigger_feedback"):
 		final_objective.call("play_skill_ui_trigger_feedback", trigger_type)
 
+	await _wait(skill_feedback_wait_seconds)
+
 	print("===== 최종목표 턴 스킬 시작 / 트리거:", trigger_type, "/ 스킬:", skill_id, "=====")
 
 	var effects_value = skill_data.get("effects", [])
@@ -133,6 +139,9 @@ func run_trigger(trigger_type: String) -> void:
 
 		var effect_data: Dictionary = effect_variant as Dictionary
 		await _execute_effect(effect_data, skill_data)
+		await _wait(skill_effect_interval_seconds)
+
+	await _wait(skill_end_wait_seconds)
 
 	print("===== 최종목표 턴 스킬 종료 / 트리거:", trigger_type, "/ 스킬:", skill_id, "=====")
 
@@ -255,3 +264,8 @@ func _build_definitions() -> void:
 		TRIGGER_TURN_START: "turn_start_damage_1",
 		TRIGGER_TURN_END: "turn_end_damage_1"
 	}
+func _wait(seconds: float) -> void:
+	if seconds <= 0.0:
+		return
+
+	await get_tree().create_timer(seconds).timeout

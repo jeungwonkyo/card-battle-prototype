@@ -8,11 +8,21 @@ class_name PlayerStatusUI
 @export var tp_ribbon_font_size: int = 32
 @export var tp_ribbon_spacing: int = 6
 @export_node_path("Control") var tp_container_path: NodePath = NodePath("../PlayerStatusUI2")
+@export var hp_preview_font_size: int = 24
+@export var hp_preview_down_color: Color = Color(0.95, 0.48, 0.48, 1.0)
+@export var hp_preview_up_color: Color = Color(0.50, 0.88, 0.50, 1.0)
+
+const PLAYER_HP_TEXT_COLOR: Color = Color(0.96, 0.78, 0.42, 1.0)
+const PLAYER_HP_TEXT_OUTLINE_COLOR: Color = Color(0.16, 0.09, 0.03, 1.0)
+const PLAYER_HP_TEXT_OUTLINE_SIZE: int = 4
+const PLAYER_HP_LABEL_OFFSET_Y: float = -6.0
+
 var max_hp: int = 0
 var current_hp: int = 0
 var current_tp: int = 0
 
 var hp_label: Label = null
+var hp_preview_label: Label = null
 var tp_label: Label = null
 var tp_container: Control = null
 var tp_ribbon_row: HBoxContainer = null
@@ -26,6 +36,7 @@ func _ready() -> void:
 
 	_ensure_ui()
 	_refresh_ui()
+	clear_hp_preview()
 
 
 func _ensure_ui() -> void:
@@ -43,6 +54,28 @@ func _ensure_ui() -> void:
 	hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	hp_label.add_theme_font_size_override("font_size", 40)
+	hp_label.add_theme_color_override("font_color", PLAYER_HP_TEXT_COLOR)
+	hp_label.add_theme_color_override("font_outline_color", PLAYER_HP_TEXT_OUTLINE_COLOR)
+	hp_label.add_theme_constant_override("outline_size", PLAYER_HP_TEXT_OUTLINE_SIZE)
+	hp_label.offset_top = PLAYER_HP_LABEL_OFFSET_Y
+	hp_label.offset_bottom = PLAYER_HP_LABEL_OFFSET_Y
+
+	hp_preview_label = get_node_or_null("HpPreviewLabel") as Label
+	if hp_preview_label == null:
+		hp_preview_label = Label.new()
+		hp_preview_label.name = "HpPreviewLabel"
+		add_child(hp_preview_label)
+
+	hp_preview_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hp_preview_label.offset_left = 0.0
+	hp_preview_label.offset_top = 28.0
+	hp_preview_label.offset_right = 0.0
+	hp_preview_label.offset_bottom = 0.0
+	hp_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hp_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	hp_preview_label.add_theme_font_size_override("font_size", hp_preview_font_size)
+	hp_preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_preview_label.visible = false
 
 	tp_container = get_node_or_null(tp_container_path) as Control
 	if tp_container == null:
@@ -102,6 +135,7 @@ func _rebuild_tp_ribbon_labels() -> void:
 
 	_refresh_tp_ribbon_ui()
 
+
 func _refresh_tp_ribbon_ui() -> void:
 	if tp_ribbon_row == null:
 		return
@@ -123,6 +157,32 @@ func _refresh_tp_ribbon_ui() -> void:
 		else:
 			ribbon_label.text = tp_empty_symbol
 			ribbon_label.modulate = Color(1, 1, 1, 0.35)
+
+
+func show_hp_preview(current_hp_value: int, after_hp_value: int) -> void:
+	if hp_preview_label == null:
+		return
+
+	if after_hp_value == current_hp_value:
+		clear_hp_preview()
+		return
+
+	hp_preview_label.visible = true
+	hp_preview_label.text = "→ %d" % clamp(after_hp_value, 0, max_hp)
+
+	if after_hp_value < current_hp_value:
+		hp_preview_label.add_theme_color_override("font_color", hp_preview_down_color)
+	else:
+		hp_preview_label.add_theme_color_override("font_color", hp_preview_up_color)
+
+
+func clear_hp_preview() -> void:
+	if hp_preview_label == null:
+		return
+
+	hp_preview_label.visible = false
+	hp_preview_label.text = ""
+
 
 func reset_tp_to_start() -> void:
 	current_tp = max(0, start_tp)

@@ -16,11 +16,14 @@ offset_bottom = 221.0
 color = Color(1, 0.09019608, 1, 1)
 
 [node name="CardImagePanel" type="Panel" parent="." unique_id=520725755]
-layout_mode = 0
-offset_left = 12.0
-offset_top = 10.0
-offset_right = 138.0
-offset_bottom = 125.0
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -75.0
+offset_right = 75.0
+offset_bottom = 150.0
+grow_horizontal = 2
 
 [node name="CardImageLabel" type="Label" parent="CardImagePanel" unique_id=1921197537]
 layout_mode = 1
@@ -43,7 +46,8 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -50.0
+offset_left = -52.0
+offset_right = -2.0
 offset_bottom = 36.0
 grow_horizontal = 0
 
@@ -73,9 +77,9 @@ grow_vertical = 2
 
 [node name="CardLevelBadgeSymbol" type="Label" parent="CardImagePanel" unique_id=1583422488]
 layout_mode = 1
-offset_left = -4.0
+offset_left = -3.0
 offset_top = -20.0
-offset_right = 40.0
+offset_right = 41.0
 offset_bottom = 24.0
 
 [node name="CardLevelLabel" type="Label" parent="CardImagePanel/CardLevelBadgeSymbol" unique_id=5489904]
@@ -93,11 +97,17 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="CardTextPanel" type="Panel" parent="." unique_id=1212096222]
-layout_mode = 0
-offset_left = 12.0
-offset_top = 133.0
-offset_right = 138.0
-offset_bottom = 209.0
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -75.0
+offset_top = -76.0
+offset_right = 75.0
+grow_horizontal = 2
+grow_vertical = 0
 
 [node name="CardSummaryLabel" type="Label" parent="CardTextPanel" unique_id=1905406091]
 layout_mode = 1

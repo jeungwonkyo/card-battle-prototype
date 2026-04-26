@@ -1301,6 +1301,8 @@ func _ensure_card_layout_nodes() -> void:
 	if text_panel != null:
 		text_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	_ensure_card_image_texture_rect()
+
 	_refresh_card_layout_positions()
 	_refresh_card_layout_visuals()
 
@@ -1373,7 +1375,7 @@ func _refresh_card_layout_visuals() -> void:
 	var symbol_text: String = _get_card_symbol_text()
 
 	var image_panel_bg_color: Color = CARD_SECTION_BG_COLOR
-	var text_panel_bg_color: Color = CARD_SECTION_BG_COLOR
+	var text_panel_bg_color: Color = symbol_color
 
 	if _is_clone_card_visual():
 		frame_color.a = CLONE_CARD_VISUAL_ALPHA
@@ -1390,7 +1392,6 @@ func _refresh_card_layout_visuals() -> void:
 	var text_panel: Panel = get_node_or_null("CardTextPanel") as Panel
 	if text_panel != null:
 		_apply_panel_style(text_panel, text_panel_bg_color, CARD_SECTION_BORDER_COLOR, CARD_SECTION_BORDER_WIDTH)
-
 	var level_badge_symbol: Label = get_node_or_null("CardImagePanel/CardLevelBadgeSymbol") as Label
 	if level_badge_symbol != null:
 		_apply_card_symbol_label(level_badge_symbol, symbol_text, symbol_color)
@@ -1499,14 +1500,70 @@ func _update_card_labels() -> void:
 		final_power_label.visible = true
 		final_power_label.add_theme_font_size_override("font_size", _get_final_power_label_font_size())
 		final_power_label.add_theme_color_override("font_color", _get_current_level_color())
+
 	var image_label: Label = get_node_or_null("CardImagePanel/CardImageLabel") as Label
 	if image_label != null:
 		image_label.text = _get_number_text_from_card_name()
+
+	_update_card_image()
 
 	var summary_label: Label = get_node_or_null("CardTextPanel/CardSummaryLabel") as Label
 	if summary_label != null:
 		summary_label.text = _get_card_summary_text()
 		
+
+
+func _ensure_card_image_texture_rect() -> TextureRect:
+	var image_rect: TextureRect = get_node_or_null("CardImagePanel/CardImageTexture") as TextureRect
+	if image_rect != null:
+		return image_rect
+
+	var image_panel: Control = get_node_or_null("CardImagePanel") as Control
+	if image_panel == null:
+		return null
+
+	image_rect = TextureRect.new()
+	image_rect.name = "CardImageTexture"
+	image_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	image_rect.layout_mode = 1
+	image_rect.anchors_preset = Control.PRESET_FULL_RECT
+	image_rect.anchor_right = 1.0
+	image_rect.anchor_bottom = 1.0
+	image_rect.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	image_rect.grow_vertical = Control.GROW_DIRECTION_BOTH
+	image_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	image_rect.stretch_mode = TextureRect.STRETCH_SCALE
+
+	image_panel.add_child(image_rect)
+	image_panel.move_child(image_rect, 0)
+
+	return image_rect
+
+func _update_card_image() -> void:
+	var image_rect: TextureRect = _ensure_card_image_texture_rect()
+	if image_rect == null:
+		return
+
+	var image_path: String = _get_card_image_path()
+	var image_texture: Texture2D = null
+
+	if image_path != "":
+		image_texture = load(image_path) as Texture2D
+
+	image_rect.texture = image_texture
+	image_rect.visible = image_texture != null
+
+	var image_label: Label = get_node_or_null("CardImagePanel/CardImageLabel") as Label
+	if image_label != null:
+		image_label.visible = image_texture == null
+
+func _get_card_image_path() -> String:
+	if card_state == null:
+		return ""
+
+	var definition: Dictionary = _get_card_definition_for_data_id(int(card_state.data_id))
+	return String(definition.get("image_path", ""))
+
 func _get_card_definition_instance() -> CardDefinition:
 	if card_definition_cache == null:
 		card_definition_cache = CardDefinitionScript.new()

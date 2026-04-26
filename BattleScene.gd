@@ -12,6 +12,9 @@ const BattleTempResultPopupScript = preload("res://BattleTempResultPopup.gd")
 const ShieldSystemScript = preload("res://ShieldSystem.gd")
 const CloneCardSystemScript = preload("res://CloneCardSystem.gd")
 const FinalObjectiveSkillSystemScript = preload("res://FinalObjectiveSkillSystem.gd")
+const FinalObjectiveDefinitionScript = preload("res://FinalObjectiveDefinition.gd")
+const MonsterDefinitionScript = preload("res://MonsterDefinition.gd")
+const MONSTER_UNIT_SCENE = preload("res://monster_unit.tscn")
 
 const PLAYER_SHIELD_TARGET_KEY: String = "player"
 
@@ -28,7 +31,9 @@ const PLAYER_SHIELD_TARGET_KEY: String = "player"
 @export_node_path("Node") var final_objective_path: NodePath
 var final_objective: Node = null
 var final_objective_skill_system: FinalObjectiveSkillSystem = null
+var final_objective_definition: FinalObjectiveDefinition = null
 
+var current_stage_final_objective_id: String = "test_final_objective_01"
 var deck_cards: Array = []
 var grave_cards: Array = []
 var next_instance_id: int = 1
@@ -81,10 +86,22 @@ var current_popup_pile_type: String = ""
 
 # 테스트 몬스터 정보
 var monster_hp_by_slot_no: Dictionary = {}
+var monster_attack_by_slot_no: Dictionary = {}
+var monster_id_by_slot_no: Dictionary = {}
 var monster_root_by_slot_no: Dictionary = {}
 var monster_hp_label_by_slot_no: Dictionary = {}
 var monster_is_face_down_by_slot_no: Dictionary = {}
 var monster_is_flipping_by_slot_no: Dictionary = {}
+var current_stage_monsters: Array = [
+	{
+		"slot_no": 2,
+		"monster_id": "monster1"
+	},
+	{
+		"slot_no": 6,
+		"monster_id": "monster2"
+	}
+]
 var combo_drag_highlighted_monster_slot_no: int = 0
 var combo_drag_preview_highlight_slot_nos: Array = []
 var combo_drag_preview_card_target_slot_by_id: Dictionary = {}
@@ -93,18 +110,25 @@ var combo_drag_preview_monster_targeted_slot_nos: Array = []
 var final_objective_combo_drag_highlighted: bool = false
 var final_objective_combo_drag_preview_highlighted: bool = false
 var combo_drag_preview_final_objective_after_hp: int = -1
+var combo_drag_preview_player_after_hp: int = -1
+var combo_drag_preview_player_after_shield: int = -1
 
 var monster_action_system: MonsterActionSystem = null
 var card_stat_system: CardStatSystem = null
 var card_level_modifier_system: CardLevelModifierSystem = null
 var card_buff_debuff_system: CardBuffDebuffSystem = null
 var card_definition: CardDefinition = null
+var monster_definition: MonsterDefinition = null
 var card_effect_system: CardEffectSystem = null
 var shield_system: ShieldSystem = null
 var clone_card_system: CloneCardSystem = null
 var battle_temp_result_popup: BattleTempResultPopup = null
 var is_temporary_battle_result_open: bool = false
 var is_combo_attack_in_progress: bool = false
+
+const TURN_NUMBER_TEXT_COLOR: Color = Color(0.886, 0.710, 0.400, 1.0)
+const TURN_NUMBER_TEXT_OUTLINE_COLOR: Color = Color(0.23, 0.14, 0.05, 1.0)
+const TURN_NUMBER_TEXT_OUTLINE_SIZE: int = 3
 
 var current_turn_number: int = 1
 var turn_number_label: Label = null
@@ -114,10 +138,13 @@ func _ready() -> void:
 	_connect_pile_signals()
 	_connect_ui_signals()
 	_bind_final_objective()
+	_setup_final_objective_definition()
+	_apply_current_stage_final_objective_data()
 	_setup_final_objective_skill_system()
 	_setup_card_level_modifier_system()
 	_setup_card_buff_debuff_system()
 	_setup_card_definition()
+	_setup_monster_definition()
 	_setup_card_effect_system()
 	_setup_shield_system()
 	_setup_clone_card_system()
@@ -128,6 +155,7 @@ func _ready() -> void:
 	_build_start_deck()
 	_create_pile_popup()
 	_setup_test_monsters()
+	_apply_test_stage_monster_data()
 	_print_pile_counts("초기화 완료")
 
 	await get_tree().process_frame
@@ -172,6 +200,51 @@ func _setup_card_definition() -> void:
 		return
 
 	print("카드 정의 시스템 연결 완료")
+
+func _setup_monster_definition() -> void:
+	if monster_definition != null:
+		return
+
+	monster_definition = MonsterDefinitionScript.new() as MonsterDefinition
+	if monster_definition == null:
+		print("몬스터 정의 시스템 생성 실패")
+		return
+
+	print("몬스터 정의 시스템 연결 완료")
+
+func _apply_test_stage_monster_data() -> void:
+	if monster_definition == null:
+		print("테스트 스테이지 몬스터 적용 실패 / monster_definition 없음")
+		return
+
+	monster_id_by_slot_no.clear()
+	monster_attack_by_slot_no.clear()
+
+	for monster_entry_variant in current_stage_monsters:
+		if typeof(monster_entry_variant) != TYPE_DICTIONARY:
+			continue
+
+		var monster_entry: Dictionary = monster_entry_variant as Dictionary
+		var slot_no: int = int(monster_entry.get("slot_no", 0))
+		var monster_id: String = String(monster_entry.get("monster_id", ""))
+
+		if slot_no <= 0:
+			continue
+		if monster_id == "":
+			continue
+
+		var monster_data: Dictionary = monster_definition.get_definition(monster_id)
+		if monster_data.is_empty():
+			print("몬스터 데이터 적용 실패 / 정의 없음 / slot:", slot_no, "/ monster_id:", monster_id)
+			continue
+
+		monster_id_by_slot_no[slot_no] = monster_id
+		monster_hp_by_slot_no[slot_no] = int(monster_data.get("base_hp", 0))
+		monster_attack_by_slot_no[slot_no] = int(monster_data.get("base_attack", 0))
+
+		_update_monster_visual(slot_no)
+
+	print("테스트 스테이지 몬스터 적용 완료 / 배치:", current_stage_monsters)
 
 func _setup_card_effect_system() -> void:
 	if card_effect_system != null:
@@ -312,6 +385,40 @@ func _bind_final_objective() -> void:
 
 	print("최종목표 연결 완료:", final_objective.name)
 
+func _setup_final_objective_definition() -> void:
+	if final_objective_definition != null:
+		return
+
+	final_objective_definition = FinalObjectiveDefinitionScript.new() as FinalObjectiveDefinition
+	if final_objective_definition == null:
+		print("최종목표 데이터 시스템 생성 실패")
+		return
+
+	add_child(final_objective_definition)
+	print("최종목표 데이터 시스템 생성 완료")
+
+
+func _apply_current_stage_final_objective_data() -> void:
+	if final_objective == null:
+		print("최종목표 데이터 적용 스킵 / final_objective 없음")
+		return
+
+	if final_objective_definition == null:
+		print("최종목표 데이터 적용 스킵 / final_objective_definition 없음")
+		return
+
+	if not final_objective.has_method("apply_definition_data"):
+		print("최종목표 데이터 적용 실패 / FinalObjective.gd에 apply_definition_data 없음")
+		return
+
+	var definition_data: Dictionary = final_objective_definition.get_definition(current_stage_final_objective_id)
+	if definition_data.is_empty():
+		print("최종목표 데이터 적용 실패 / id:", current_stage_final_objective_id)
+		return
+
+	final_objective.call("apply_definition_data", definition_data)
+	print("현재 전투 최종목표 적용 완료 / id:", current_stage_final_objective_id)
+
 func _setup_turn_number_ui() -> void:
 	if turn_number_root == null:
 		print("턴 번호 UI 연결 실패 / TurnNumber 노드 확인 필요")
@@ -332,9 +439,9 @@ func _setup_turn_number_ui() -> void:
 	turn_number_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	turn_number_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	turn_number_label.add_theme_font_size_override("font_size", 30)
-	turn_number_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	turn_number_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
-	turn_number_label.add_theme_constant_override("outline_size", 3)
+	turn_number_label.add_theme_color_override("font_color", TURN_NUMBER_TEXT_COLOR)
+	turn_number_label.add_theme_color_override("font_outline_color", TURN_NUMBER_TEXT_OUTLINE_COLOR)
+	turn_number_label.add_theme_constant_override("outline_size", TURN_NUMBER_TEXT_OUTLINE_SIZE)
 
 func _refresh_turn_number_ui() -> void:
 	if turn_number_label == null:
@@ -362,7 +469,6 @@ func _setup_final_objective_skill_system() -> void:
 
 	add_child(final_objective_skill_system)
 	final_objective_skill_system.setup(self, final_objective)
-	final_objective_skill_system.apply_skill_profile("boss_test_damage_1")
 	print("최종목표 턴 스킬 시스템 연결 완료")
 
 func _can_use_player_status_ui() -> bool:
@@ -2654,14 +2760,18 @@ func _ensure_monster_visual(slot_no: int) -> void:
 
 	var unit: MonsterUnit = slot.get_node_or_null("MonsterUnit") as MonsterUnit
 	if unit == null:
-		unit = MonsterUnit.new()
+		unit = MONSTER_UNIT_SCENE.instantiate() as MonsterUnit
+		if unit == null:
+			print("monster_unit.tscn 생성 실패 / 슬롯:", slot_no)
+			return
+
 		unit.name = "MonsterUnit"
 		slot.add_child(unit)
 
 	unit.setup_unit(slot_no, slot.size)
 
 	monster_root_by_slot_no[slot_no] = unit
-	monster_hp_label_by_slot_no[slot_no] = unit.get_node_or_null("MonsterHpLabel") as Label
+	monster_hp_label_by_slot_no[slot_no] = unit.get_node_or_null("MonsterImagePanel/MonsterLifeBadgeSymbol/MonsterLifeLabel") as Label
 
 func _update_monster_visual(slot_no: int) -> void:
 	var unit: MonsterUnit = _get_monster_unit(slot_no)
@@ -2669,32 +2779,55 @@ func _update_monster_visual(slot_no: int) -> void:
 		return
 
 	var hp: int = int(monster_hp_by_slot_no.get(slot_no, 0))
-	var attack_value: int = _get_basic_monster_attack_display_value()
+	var attack_value: int = get_monster_attack_by_slot_no(slot_no)
+	var monster_id: String = String(monster_id_by_slot_no.get(slot_no, ""))
+
+	var skill_summary_text: String = ""
+	var monster_image_path: String = ""
+
+	if monster_definition != null and monster_id != "":
+		var skill_data: Dictionary = monster_definition.get_primary_skill_data(monster_id)
+		skill_summary_text = String(skill_data.get("summary_text", ""))
+		monster_image_path = monster_definition.get_image_path(monster_id)
+
 	unit.visible = true
+
+	if monster_image_path != "":
+		unit.set_monster_image_by_path(monster_image_path)
+	else:
+		unit.set_monster_image_placeholder(_get_monster_placeholder_text(monster_id))
+
 	unit.set_attack_value(attack_value)
 	unit.set_hp_text(hp)
-
-	if unit.has_method("clear_hp_preview"):
-		unit.clear_hp_preview()
-
-	if slot_no == 4:
-		unit.set_effect_symbols(["❄"])
-	else:
-		unit.set_effect_symbols([])
+	unit.set_effect_symbols([])
+	unit.set_summary_text(skill_summary_text)
 
 	if bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
 		unit.apply_back_face()
 	else:
 		unit.apply_front_face()
 
-func _get_basic_monster_attack_display_value() -> int:
-	if monster_action_system == null:
+func _get_monster_placeholder_text(monster_id: String) -> String:
+	if monster_id.begins_with("monster") and monster_id.length() > 7:
+		return monster_id.substr(7, monster_id.length() - 7)
+
+	return monster_id
+
+func get_monster_attack_by_slot_no(slot_no: int) -> int:
+	return max(0, int(monster_attack_by_slot_no.get(slot_no, 0)))
+
+func _get_monster_base_hp_by_slot_no(slot_no: int) -> int:
+	var monster_id: String = String(monster_id_by_slot_no.get(slot_no, ""))
+	if monster_id == "":
+		return 0
+	if monster_definition == null:
 		return 0
 
-	if monster_action_system.has_method("get_basic_attack_damage"):
-		return max(0, int(monster_action_system.get_basic_attack_damage()))
+	var monster_data: Dictionary = monster_definition.get_definition(monster_id)
+	if monster_data.is_empty():
+		return 0
 
-	return max(0, int(monster_action_system.basic_attack_damage))
+	return max(0, int(monster_data.get("base_hp", 0)))
 
 func refresh_all_monster_attack_displays() -> void:
 	for slot_no_variant in monster_root_by_slot_no.keys():
@@ -2703,10 +2836,38 @@ func refresh_all_monster_attack_displays() -> void:
 		if unit == null:
 			continue
 
-		unit.set_attack_value(_get_basic_monster_attack_display_value())
+		unit.set_attack_value(get_monster_attack_by_slot_no(slot_no))
 
 func _get_monster_current_hp(slot_no: int) -> int:
 	return int(monster_hp_by_slot_no.get(slot_no, 0))
+
+func _run_monster_skill_trigger(slot_no: int, trigger_type: String) -> void:
+	if monster_definition == null:
+		return
+
+	var monster_id: String = String(monster_id_by_slot_no.get(slot_no, ""))
+	if monster_id == "":
+		return
+
+	var skill_data: Dictionary = monster_definition.get_primary_skill_data(monster_id)
+	if skill_data.is_empty():
+		return
+
+	var skill_trigger: String = String(skill_data.get("trigger", ""))
+	if skill_trigger != trigger_type:
+		return
+
+	var effect_type: String = String(skill_data.get("effect_type", ""))
+	var amount: int = int(skill_data.get("amount", 0))
+
+	match effect_type:
+		MonsterDefinition.EFFECT_DAMAGE_PLAYER:
+			if amount <= 0:
+				return
+			apply_damage_to_player(amount)
+			print("몬스터 스킬 발동 / slot:", slot_no, "/ trigger:", trigger_type, "/ amount:", amount)
+		_:
+			print("몬스터 스킬 미구현 / slot:", slot_no, "/ trigger:", trigger_type, "/ effect_type:", effect_type)
 
 func update_combo_drag_target_highlight_by_point(target_point_global: Vector2) -> void:
 	if _is_point_over_final_objective(target_point_global):
@@ -2762,15 +2923,17 @@ func update_combo_drag_snapped_overlap_preview(card_rect_datas: Array) -> void:
 	_refresh_combo_drag_monster_hp_preview_from_active_leader()
 
 	if combo_drag_preview_card_target_slot_by_id.is_empty():
+		_clear_combo_drag_player_previews()
 		_set_final_objective_combo_drag_preview_highlight(false)
 		return
 
+	_refresh_combo_drag_player_preview_from_active_leader()
 	_refresh_final_objective_combo_drag_preview_from_active_leader()
-
 func clear_combo_drag_target_highlight() -> void:
 	_apply_combo_drag_preview_highlight_slots([])
 	_set_final_objective_combo_drag_highlight(false)
 	_clear_combo_drag_monster_hp_previews()
+	_clear_combo_drag_player_previews()
 	_clear_final_objective_combo_drag_hp_preview()
 	_set_final_objective_combo_drag_preview_highlight(false)
 	combo_drag_highlighted_monster_slot_no = 0
@@ -2819,6 +2982,157 @@ func _refresh_combo_drag_monster_hp_preview_from_active_leader() -> void:
 
 	_apply_combo_drag_monster_hp_previews(after_hp_value as Dictionary)
 
+func _refresh_combo_drag_player_preview_from_active_leader() -> void:
+	var leader_card: TestCard = _get_active_combo_drag_leader_card()
+	if leader_card == null:
+		_clear_combo_drag_player_previews()
+		return
+
+	var combo_data: Dictionary = get_combo_data_for_card(leader_card)
+	if combo_data.is_empty():
+		_clear_combo_drag_player_previews()
+		return
+
+	var preview_combo_data: Dictionary = combo_data.duplicate(true)
+	var cards_value = preview_combo_data.get("cards", [])
+	if typeof(cards_value) != TYPE_ARRAY:
+		_clear_combo_drag_player_previews()
+		return
+
+	var combo_cards: Array = cards_value as Array
+	preview_combo_data["leader_card"] = leader_card
+	preview_combo_data["card_role_by_instance_id"] = _build_combo_card_role_map(combo_cards, leader_card)
+
+	var preview_result: Dictionary = _build_combo_drag_player_preview_result(preview_combo_data, leader_card)
+	if not bool(preview_result.get("should_preview", false)):
+		_clear_combo_drag_player_previews()
+		return
+
+	_apply_combo_drag_player_previews(
+		int(preview_result.get("after_hp", _get_player_hp_for_temp_result())),
+		int(preview_result.get("after_shield", get_player_shield()))
+	)
+
+func _apply_combo_drag_player_previews(after_hp: int, after_shield: int) -> void:
+	combo_drag_preview_player_after_hp = max(0, after_hp)
+	combo_drag_preview_player_after_shield = max(0, after_shield)
+
+	var current_hp: int = max(0, _get_player_hp_for_temp_result())
+	var current_shield: int = max(0, get_player_shield())
+
+	if _can_use_player_status_ui() and player_status_ui.has_method("show_hp_preview"):
+		player_status_ui.show_hp_preview(current_hp, combo_drag_preview_player_after_hp)
+
+	if shieldpoint_ui != null and is_instance_valid(shieldpoint_ui):
+		if shieldpoint_ui.has_method("show_shield_preview"):
+			shieldpoint_ui.call("show_shield_preview", current_shield, combo_drag_preview_player_after_shield)
+
+func _clear_combo_drag_player_previews() -> void:
+	combo_drag_preview_player_after_hp = -1
+	combo_drag_preview_player_after_shield = -1
+
+	if _can_use_player_status_ui() and player_status_ui.has_method("clear_hp_preview"):
+		player_status_ui.clear_hp_preview()
+
+	if shieldpoint_ui != null and is_instance_valid(shieldpoint_ui):
+		if shieldpoint_ui.has_method("clear_shield_preview"):
+			shieldpoint_ui.call("clear_shield_preview")
+
+func _build_combo_drag_player_preview_result(combo_data: Dictionary, leader_card: TestCard) -> Dictionary:
+	var current_hp: int = max(0, _get_player_hp_for_temp_result())
+	var current_shield: int = max(0, get_player_shield())
+
+	var result: Dictionary = {
+		"should_preview": false,
+		"after_hp": current_hp,
+		"after_shield": current_shield
+	}
+
+	if combo_data.is_empty():
+		return result
+
+	if leader_card == null:
+		return result
+
+	var attack_plan: Dictionary = _build_combo_attack_plan(combo_data, leader_card)
+	var leader_target_type: String = String(attack_plan.get("leader_target_type", "monster"))
+	var combo_type: String = String(combo_data.get("combo_type", ""))
+
+	var attack_entries_value = attack_plan.get("entries", [])
+	if typeof(attack_entries_value) != TYPE_ARRAY:
+		attack_entries_value = []
+	var attack_entries: Array = attack_entries_value as Array
+
+	var leader_target_slot_no: int = int(attack_plan.get("leader_target_slot_no", 0))
+
+	var overlap_priority_value = attack_plan.get("overlap_priority_slot_nos", [])
+	if typeof(overlap_priority_value) != TYPE_ARRAY:
+		overlap_priority_value = []
+	var overlap_priority_slot_nos: Array = overlap_priority_value as Array
+
+	var simulated_hp_by_slot_no: Dictionary = {}
+	for slot_no in range(1, 8):
+		simulated_hp_by_slot_no[slot_no] = _get_monster_current_hp(slot_no)
+
+	var preview_state: Dictionary = _make_before_attack_combo_preview_state(combo_data)
+
+	for attack_entry_variant in attack_entries:
+		if typeof(attack_entry_variant) != TYPE_DICTIONARY:
+			continue
+
+		var attack_entry: Dictionary = attack_entry_variant as Dictionary
+		var attack_card: TestCard = attack_entry.get("card", null) as TestCard
+		if attack_card == null:
+			continue
+		if not is_instance_valid(attack_card):
+			continue
+		if attack_card.card_state == null:
+			continue
+
+		_apply_before_attack_effects_to_combo_preview(combo_data, attack_entry, preview_state)
+
+		if leader_target_type != "monster":
+			continue
+
+		var target_slot_no: int = 0
+		var is_fixed_overlap: bool = bool(attack_entry.get("is_fixed_overlap", false))
+
+		if is_fixed_overlap:
+			target_slot_no = int(attack_entry.get("target_slot_no", 0))
+		else:
+			target_slot_no = _resolve_non_overlapped_combo_target_slot_no_from_simulated_hp(
+				leader_target_slot_no,
+				overlap_priority_slot_nos,
+				simulated_hp_by_slot_no
+			)
+
+		if target_slot_no <= 0:
+			continue
+
+		var before_hp: int = int(simulated_hp_by_slot_no.get(target_slot_no, 0))
+		if before_hp <= 0:
+			continue
+
+		var hit_damage: int = _calculate_preview_final_power_from_card_and_combo_type(
+			attack_card,
+			combo_type,
+			preview_state
+		)
+
+		var after_hp: int = max(0, before_hp - hit_damage)
+		simulated_hp_by_slot_no[target_slot_no] = after_hp
+
+		if before_hp > 0 and after_hp <= 0:
+			_apply_preview_player_damage_from_monster_trigger(target_slot_no, "exit", preview_state)
+
+	result["after_hp"] = int(preview_state.get("player_after_hp", current_hp))
+	result["after_shield"] = int(preview_state.get("player_after_shield", current_shield))
+	result["should_preview"] = (
+		int(result.get("after_hp", current_hp)) != current_hp
+		or int(result.get("after_shield", current_shield)) != current_shield
+	)
+
+	return result
 func _apply_combo_drag_monster_hp_previews(after_hp_by_slot_no: Dictionary) -> void:
 	var next_targeted_slot_nos: Array = []
 
@@ -2988,7 +3302,9 @@ func _resolve_non_overlapped_combo_target_slot_no_from_simulated_hp(
 func _make_before_attack_combo_preview_state(combo_data: Dictionary) -> Dictionary:
 	var result: Dictionary = {
 		"growth_by_instance_id": {},
-		"blessing_by_instance_id": {}
+		"blessing_by_instance_id": {},
+		"player_after_hp": max(0, _get_player_hp_for_temp_result()),
+		"player_after_shield": max(0, get_player_shield())
 	}
 
 	var cards_value = combo_data.get("cards", [])
@@ -3090,6 +3406,15 @@ func _apply_single_before_attack_effect_to_combo_preview(
 		CardDefinition.EFFECT_GRANT_SELF_GROWTH:
 			_apply_preview_effect_grant_self_growth(effect_data, attack_entry, preview_state)
 
+		CardDefinition.EFFECT_GAIN_SHIELD_BY_SELF_FINAL_POWER:
+			_apply_preview_effect_gain_shield_by_self_final_power(combo_data, attack_entry, preview_state)
+
+		CardDefinition.EFFECT_GAIN_SHIELD_BY_SELF_LEVEL:
+			_apply_preview_effect_gain_shield_by_self_level(attack_entry, preview_state)
+
+		CardDefinition.EFFECT_HEAL_PLAYER_HP_BY_SELF_LEVEL_X2:
+			_apply_preview_effect_heal_player_hp_by_self_level_x2(attack_entry, preview_state)
+
 		_:
 			pass
 
@@ -3186,6 +3511,139 @@ func _apply_preview_effect_grant_self_growth(
 		int(attack_card.card_state.instance_id),
 		amount
 	)
+
+func _apply_preview_effect_gain_shield_by_self_final_power(
+	combo_data: Dictionary,
+	attack_entry: Dictionary,
+	preview_state: Dictionary
+) -> void:
+	var attack_card: TestCard = attack_entry.get("card", null) as TestCard
+	if attack_card == null:
+		return
+	if not is_instance_valid(attack_card):
+		return
+	if attack_card.card_state == null:
+		return
+
+	var combo_type: String = String(combo_data.get("combo_type", ""))
+	var shield_amount: int = _calculate_preview_final_power_from_card_and_combo_type(
+		attack_card,
+		combo_type,
+		preview_state
+	)
+
+	_add_preview_player_shield(preview_state, shield_amount)
+
+func _apply_preview_effect_gain_shield_by_self_level(
+	attack_entry: Dictionary,
+	preview_state: Dictionary
+) -> void:
+	var attack_card: TestCard = attack_entry.get("card", null) as TestCard
+	if attack_card == null:
+		return
+	if not is_instance_valid(attack_card):
+		return
+	if attack_card.card_state == null:
+		return
+
+	var shield_amount: int = _get_preview_card_final_level(attack_card, preview_state)
+	_add_preview_player_shield(preview_state, shield_amount)
+
+func _apply_preview_effect_heal_player_hp_by_self_level_x2(
+	attack_entry: Dictionary,
+	preview_state: Dictionary
+) -> void:
+	var attack_card: TestCard = attack_entry.get("card", null) as TestCard
+	if attack_card == null:
+		return
+	if not is_instance_valid(attack_card):
+		return
+	if attack_card.card_state == null:
+		return
+
+	var heal_amount: int = _get_preview_card_final_level(attack_card, preview_state) * 2
+	_add_preview_player_hp(preview_state, heal_amount)
+
+func _add_preview_player_shield(preview_state: Dictionary, amount: int) -> void:
+	if amount <= 0:
+		return
+
+	var current_shield: int = int(preview_state.get("player_after_shield", 0))
+	preview_state["player_after_shield"] = max(0, current_shield + amount)
+
+func _add_preview_player_hp(preview_state: Dictionary, amount: int) -> void:
+	if amount <= 0:
+		return
+
+	var current_hp: int = int(preview_state.get("player_after_hp", 0))
+	var max_hp: int = _get_player_max_hp_for_preview()
+	preview_state["player_after_hp"] = min(max_hp, current_hp + amount)
+
+func _apply_preview_player_damage(preview_state: Dictionary, damage: int) -> void:
+	if damage <= 0:
+		return
+
+	var current_shield: int = int(preview_state.get("player_after_shield", 0))
+	var blocked_damage: int = min(current_shield, damage)
+	var hp_damage: int = max(0, damage - blocked_damage)
+
+	preview_state["player_after_shield"] = max(0, current_shield - blocked_damage)
+
+	var current_hp: int = int(preview_state.get("player_after_hp", 0))
+	preview_state["player_after_hp"] = max(0, current_hp - hp_damage)
+
+func _apply_preview_player_damage_from_monster_trigger(
+	slot_no: int,
+	trigger_type: String,
+	preview_state: Dictionary
+) -> void:
+	var damage_amount: int = _get_preview_player_damage_amount_from_monster_trigger(slot_no, trigger_type)
+	_apply_preview_player_damage(preview_state, damage_amount)
+
+func _get_preview_player_damage_amount_from_monster_trigger(slot_no: int, trigger_type: String) -> int:
+	if slot_no <= 0:
+		return 0
+	if bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
+		return 0
+	if monster_definition == null:
+		return 0
+
+	var monster_id: String = String(monster_id_by_slot_no.get(slot_no, ""))
+	if monster_id == "":
+		return 0
+
+	var definition: Dictionary = monster_definition.get_definition(monster_id)
+	if definition.is_empty():
+		return 0
+
+	var effects_value: Variant = definition.get("effects", [])
+	if typeof(effects_value) != TYPE_ARRAY:
+		return 0
+
+	var total_damage: int = 0
+	var effects: Array = effects_value as Array
+
+	for effect_variant in effects:
+		if typeof(effect_variant) != TYPE_DICTIONARY:
+			continue
+
+		var effect_data: Dictionary = effect_variant as Dictionary
+		if String(effect_data.get("trigger", "")) != trigger_type:
+			continue
+		if String(effect_data.get("effect_type", "")) != "damage_player":
+			continue
+
+		total_damage += max(0, int(effect_data.get("amount", 0)))
+
+	return total_damage
+
+func _get_player_max_hp_for_preview() -> int:
+	if _can_use_player_status_ui():
+		var start_hp_value: Variant = player_status_ui.get("start_hp")
+		if start_hp_value != null:
+			return max(0, int(start_hp_value))
+
+	return max(0, _get_player_hp_for_temp_result())
 
 func _add_preview_growth_delta(preview_state: Dictionary, instance_id: int, amount: int) -> void:
 	if instance_id <= 0:
@@ -3560,6 +4018,7 @@ func _flip_monster_to_back(slot_no: int) -> void:
 	monster_is_face_down_by_slot_no[slot_no] = true
 	monster_is_flipping_by_slot_no[slot_no] = false
 	_update_monster_visual(slot_no)
+	_run_monster_skill_trigger(slot_no, MonsterDefinition.TRIGGER_EXIT)
 
 func _flip_monster_to_front(slot_no: int) -> void:
 	var unit: MonsterUnit = _get_monster_unit(slot_no)
@@ -3568,13 +4027,15 @@ func _flip_monster_to_front(slot_no: int) -> void:
 	if not bool(monster_is_face_down_by_slot_no.get(slot_no, false)):
 		return
 
+	var restore_hp: int = _get_monster_base_hp_by_slot_no(slot_no)
+
 	monster_is_flipping_by_slot_no[slot_no] = true
-	monster_hp_by_slot_no[slot_no] = monster_start_hp
-	await unit.flip_to_front(monster_start_hp)
+	monster_hp_by_slot_no[slot_no] = restore_hp
+	await unit.flip_to_front(restore_hp)
 	monster_is_face_down_by_slot_no[slot_no] = false
 	monster_is_flipping_by_slot_no[slot_no] = false
 	_update_monster_visual(slot_no)
-
+	_run_monster_skill_trigger(slot_no, MonsterDefinition.TRIGGER_ENTER)
 func _flip_face_down_monsters_to_front_left_to_right() -> void:
 	for slot_no in range(1, 8):
 		if not monster_is_face_down_by_slot_no.has(slot_no):

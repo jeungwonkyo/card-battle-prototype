@@ -3,12 +3,30 @@ extends Node
 const TRIGGER_TURN_START: String = "turn_start"
 const TRIGGER_TURN_END: String = "turn_end"
 
-const HP_BAR_FILL_COLOR: Color = Color(0.86, 0.22, 0.22, 1.0)
-const HP_BAR_PREVIEW_LOSS_COLOR: Color = Color(0.50, 0.50, 0.50, 0.96)
+const HP_FILL_TEXTURE_PATH: String = "res://ui/End EnemyHP.png"
+const HP_FRAME_TEXTURE_PATH: String = "res://ui/End EnemyHPCase.png"
 
-@export var start_hp: int = 40
+const HP_BAR_FILL_MODULATE: Color = Color(1.0, 1.0, 1.0, 1.0)
+const HP_BAR_BACK_MODULATE: Color = Color(0.22, 0.05, 0.04, 1.0)
+const HP_BAR_PREVIEW_LOSS_MODULATE: Color = Color(0.45, 0.45, 0.45, 0.96)
+
+const FINAL_OBJECTIVE_HP_TEXT_COLOR: Color = Color(0.886, 0.710, 0.400, 1.0)
+const FINAL_OBJECTIVE_HP_TEXT_OUTLINE_COLOR: Color = Color(0.23, 0.14, 0.05, 1.0)
+const FINAL_OBJECTIVE_HP_TEXT_OUTLINE_SIZE: int = 3
+
+const HP_FILL_OFFSET_LEFT: float = 0.0
+const HP_FILL_OFFSET_TOP: float = 1.0
+const HP_FILL_OFFSET_RIGHT: float = 0.0
+const HP_FILL_OFFSET_BOTTOM: float = 6.0
+
+const HP_LABEL_OFFSET_Y: float = -5.0
+
+@export var fallback_hp: int = 40
 @export_node_path("Control") var objective_root_path: NodePath
 @export_node_path("Control") var objective_info_bar_path: NodePath
+
+var final_objective_id: String = ""
+var display_name: String = "최종목표"
 
 var max_hp: int = 0
 var current_hp: int = 0
@@ -18,10 +36,16 @@ var is_hp_preview_visible: bool = false
 var objective_root: Control = null
 var objective_info_bar: Control = null
 
+var final_objective_image_texture: TextureRect = null
+
 var objective_name_label: Label = null
 var objective_hp_label: Label = null
-var objective_hp_fill_rect: ColorRect = null
-var objective_hp_preview_loss_rect: ColorRect = null
+var objective_hp_back_texture: TextureRect = null
+var objective_hp_fill_clip: Control = null
+var objective_hp_fill_texture: TextureRect = null
+var objective_hp_preview_loss_clip: Control = null
+var objective_hp_preview_loss_texture: TextureRect = null
+var objective_hp_frame_texture: TextureRect = null
 var objective_highlight_panel: Panel = null
 
 var skill_id_by_trigger: Dictionary = {}
@@ -30,6 +54,7 @@ var skill_name_label_by_trigger: Dictionary = {}
 var skill_short_label_by_trigger: Dictionary = {}
 var skill_trigger_label_by_trigger: Dictionary = {}
 var skill_flash_overlay_by_trigger: Dictionary = {}
+var skill_feedback_tween_by_trigger: Dictionary = {}
 
 
 func _ready() -> void:
@@ -39,7 +64,7 @@ func _ready() -> void:
 
 
 func initialize() -> void:
-	max_hp = max(0, start_hp)
+	max_hp = max(0, fallback_hp)
 	current_hp = max_hp
 	preview_hp = current_hp
 	is_hp_preview_visible = false
@@ -48,6 +73,7 @@ func initialize() -> void:
 	skill_id_by_trigger[TRIGGER_TURN_START] = "turn_start_none"
 	skill_id_by_trigger[TRIGGER_TURN_END] = "turn_end_none"
 
+	_ensure_final_objective_image_texture()
 	_ensure_objective_name_label()
 	_ensure_objective_hp_label()
 	_ensure_objective_highlight_panel()
@@ -56,7 +82,71 @@ func initialize() -> void:
 	_set_default_skill_ui_text(TRIGGER_TURN_START)
 	_set_default_skill_ui_text(TRIGGER_TURN_END)
 	_refresh_ui()
+	
+func apply_definition_data(definition_data: Dictionary) -> void:
+	if definition_data.is_empty():
+		print("최종목표 데이터 적용 실패 / 데이터 비어있음")
+		return
 
+	final_objective_id = String(definition_data.get("final_objective_id", ""))
+	display_name = String(definition_data.get("display_name", "최종목표"))
+
+	max_hp = max(1, int(definition_data.get("max_hp", fallback_hp)))
+	current_hp = max_hp
+	preview_hp = current_hp
+	is_hp_preview_visible = false
+
+	var image_path: String = String(definition_data.get("image_path", ""))
+	_apply_final_objective_image(image_path)
+
+	var turn_start_skill_id: String = String(definition_data.get(TRIGGER_TURN_START, "turn_start_none"))
+	var turn_end_skill_id: String = String(definition_data.get(TRIGGER_TURN_END, "turn_end_none"))
+	set_skill_id_by_trigger(TRIGGER_TURN_START, turn_start_skill_id)
+	set_skill_id_by_trigger(TRIGGER_TURN_END, turn_end_skill_id)
+
+	clear_hp_preview()
+	_refresh_ui()
+
+	print(
+		"최종목표 데이터 적용 완료 / id:", final_objective_id,
+		" / 이름:", display_name,
+		" / HP:", max_hp,
+		" / 턴시작:", turn_start_skill_id,
+		" / 턴종료:", turn_end_skill_id
+	)
+
+func _ensure_final_objective_image_texture() -> void:
+	if objective_root == null:
+		return
+
+	final_objective_image_texture = objective_root.get_node_or_null("FinalObjectiveImage") as TextureRect
+
+	if final_objective_image_texture == null:
+		print("최종목표 이미지 노드 없음 / Boss/FinalObjectiveImage 확인 필요")
+
+
+func _apply_final_objective_image(image_path: String) -> void:
+	if final_objective_image_texture == null:
+		_ensure_final_objective_image_texture()
+
+	if final_objective_image_texture == null:
+		return
+
+	if image_path == "":
+		final_objective_image_texture.texture = null
+		final_objective_image_texture.visible = false
+		return
+
+	var loaded_texture: Texture2D = load(image_path) as Texture2D
+	if loaded_texture == null:
+		print("최종목표 이미지 로드 실패:", image_path)
+		final_objective_image_texture.texture = null
+		final_objective_image_texture.visible = false
+		return
+
+	final_objective_image_texture.texture = loaded_texture
+	final_objective_image_texture.visible = true
+	print("최종목표 이미지 적용 완료:", image_path)
 
 func _ensure_objective_name_label() -> void:
 	if objective_root == null:
@@ -84,34 +174,120 @@ func _ensure_objective_hp_label() -> void:
 	if objective_info_bar == null:
 		return
 
-	var found_fill_rect: ColorRect = objective_info_bar.get_node_or_null("FinalObjectiveHpFillRect") as ColorRect
-	if found_fill_rect == null:
-		found_fill_rect = ColorRect.new()
-		found_fill_rect.name = "FinalObjectiveHpFillRect"
-		found_fill_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-		found_fill_rect.offset_left = 0.0
-		found_fill_rect.offset_top = 0.0
-		found_fill_rect.offset_right = 0.0
-		found_fill_rect.offset_bottom = 0.0
-		found_fill_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		found_fill_rect.color = HP_BAR_FILL_COLOR
-		objective_info_bar.add_child(found_fill_rect)
+	var fill_texture_resource: Texture2D = load(HP_FILL_TEXTURE_PATH) as Texture2D
+	var frame_texture_resource: Texture2D = load(HP_FRAME_TEXTURE_PATH) as Texture2D
 
-	var found_preview_loss_rect: ColorRect = objective_info_bar.get_node_or_null("FinalObjectiveHpPreviewLossRect") as ColorRect
-	if found_preview_loss_rect == null:
-		found_preview_loss_rect = ColorRect.new()
-		found_preview_loss_rect.name = "FinalObjectiveHpPreviewLossRect"
-		found_preview_loss_rect.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		found_preview_loss_rect.anchor_right = 0.0
-		found_preview_loss_rect.anchor_bottom = 1.0
-		found_preview_loss_rect.offset_left = 0.0
-		found_preview_loss_rect.offset_top = 0.0
-		found_preview_loss_rect.offset_right = 0.0
-		found_preview_loss_rect.offset_bottom = 0.0
-		found_preview_loss_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		found_preview_loss_rect.visible = false
-		found_preview_loss_rect.color = HP_BAR_PREVIEW_LOSS_COLOR
-		objective_info_bar.add_child(found_preview_loss_rect)
+	var old_frame_texture_rect: TextureRect = objective_info_bar.get_node_or_null("TextureRect") as TextureRect
+	if old_frame_texture_rect != null:
+		old_frame_texture_rect.visible = false
+		old_frame_texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var old_scene_fill_texture: TextureRect = objective_info_bar.get_node_or_null("End EnemyHP") as TextureRect
+	if old_scene_fill_texture != null:
+		old_scene_fill_texture.visible = false
+		old_scene_fill_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var old_scene_frame_texture: TextureRect = objective_info_bar.get_node_or_null("End EnemyHPCase") as TextureRect
+	if old_scene_frame_texture != null:
+		old_scene_frame_texture.visible = false
+		old_scene_frame_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var background_panel: Panel = objective_info_bar.get_node_or_null("Panel") as Panel
+	if background_panel != null:
+		background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		background_panel.visible = false
+
+	var old_fill_rect: ColorRect = objective_info_bar.get_node_or_null("FinalObjectiveHpFillRect") as ColorRect
+	if old_fill_rect != null:
+		old_fill_rect.visible = false
+
+	var old_preview_loss_rect: ColorRect = objective_info_bar.get_node_or_null("FinalObjectiveHpPreviewLossRect") as ColorRect
+	if old_preview_loss_rect != null:
+		old_preview_loss_rect.visible = false
+
+	var found_back_texture: TextureRect = objective_info_bar.get_node_or_null("End EnemyHPback") as TextureRect
+	if found_back_texture == null:
+		found_back_texture = TextureRect.new()
+		found_back_texture.name = "End EnemyHPback"
+		objective_info_bar.add_child(found_back_texture)
+
+	found_back_texture.texture = fill_texture_resource
+	found_back_texture.set_anchors_preset(Control.PRESET_FULL_RECT)
+	found_back_texture.offset_left = 0.0
+	found_back_texture.offset_top = 0.0
+	found_back_texture.offset_right = 0.0
+	found_back_texture.offset_bottom = 0.0
+	found_back_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	found_back_texture.stretch_mode = TextureRect.STRETCH_SCALE
+	found_back_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	found_back_texture.modulate = HP_BAR_BACK_MODULATE
+	found_back_texture.z_index = 0
+	found_back_texture.visible = true
+
+	var found_fill_clip: Control = objective_info_bar.get_node_or_null("FinalObjectiveHpFillClip") as Control
+	if found_fill_clip == null:
+		found_fill_clip = Control.new()
+		found_fill_clip.name = "FinalObjectiveHpFillClip"
+		found_fill_clip.clip_contents = true
+		found_fill_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		objective_info_bar.add_child(found_fill_clip)
+
+	found_fill_clip.z_index = 1
+
+	var found_fill_texture: TextureRect = found_fill_clip.get_node_or_null("FinalObjectiveHpFillTexture") as TextureRect
+	if found_fill_texture == null:
+		found_fill_texture = TextureRect.new()
+		found_fill_texture.name = "FinalObjectiveHpFillTexture"
+		found_fill_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		found_fill_clip.add_child(found_fill_texture)
+
+	found_fill_texture.texture = fill_texture_resource
+	found_fill_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	found_fill_texture.stretch_mode = TextureRect.STRETCH_SCALE
+	found_fill_texture.modulate = HP_BAR_FILL_MODULATE
+	found_fill_texture.z_index = 1
+
+	var found_preview_loss_clip: Control = objective_info_bar.get_node_or_null("FinalObjectiveHpPreviewLossClip") as Control
+	if found_preview_loss_clip == null:
+		found_preview_loss_clip = Control.new()
+		found_preview_loss_clip.name = "FinalObjectiveHpPreviewLossClip"
+		found_preview_loss_clip.clip_contents = true
+		found_preview_loss_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		found_preview_loss_clip.visible = false
+		objective_info_bar.add_child(found_preview_loss_clip)
+
+	found_preview_loss_clip.z_index = 2
+
+	var found_preview_loss_texture: TextureRect = found_preview_loss_clip.get_node_or_null("FinalObjectiveHpPreviewLossTexture") as TextureRect
+	if found_preview_loss_texture == null:
+		found_preview_loss_texture = TextureRect.new()
+		found_preview_loss_texture.name = "FinalObjectiveHpPreviewLossTexture"
+		found_preview_loss_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		found_preview_loss_clip.add_child(found_preview_loss_texture)
+
+	found_preview_loss_texture.texture = fill_texture_resource
+	found_preview_loss_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	found_preview_loss_texture.stretch_mode = TextureRect.STRETCH_SCALE
+	found_preview_loss_texture.modulate = HP_BAR_PREVIEW_LOSS_MODULATE
+	found_preview_loss_texture.z_index = 1
+
+	var found_frame_texture: TextureRect = objective_info_bar.get_node_or_null("FinalObjectiveHpFrameTexture") as TextureRect
+	if found_frame_texture == null:
+		found_frame_texture = TextureRect.new()
+		found_frame_texture.name = "FinalObjectiveHpFrameTexture"
+		objective_info_bar.add_child(found_frame_texture)
+
+	found_frame_texture.texture = frame_texture_resource
+	found_frame_texture.set_anchors_preset(Control.PRESET_FULL_RECT)
+	found_frame_texture.offset_left = 0.0
+	found_frame_texture.offset_top = 0.0
+	found_frame_texture.offset_right = 0.0
+	found_frame_texture.offset_bottom = 0.0
+	found_frame_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	found_frame_texture.stretch_mode = TextureRect.STRETCH_SCALE
+	found_frame_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	found_frame_texture.z_index = 20
+	found_frame_texture.visible = true
 
 	var found_label: Label = objective_info_bar.get_node_or_null("FinalObjectiveHpLabel") as Label
 	if found_label == null:
@@ -128,13 +304,18 @@ func _ensure_objective_hp_label() -> void:
 		found_label.add_theme_font_size_override("font_size", 24)
 		objective_info_bar.add_child(found_label)
 
-	objective_hp_fill_rect = found_fill_rect
-	objective_hp_preview_loss_rect = found_preview_loss_rect
-	objective_hp_label = found_label
+	found_label.add_theme_color_override("font_color", FINAL_OBJECTIVE_HP_TEXT_COLOR)
+	found_label.add_theme_color_override("font_outline_color", FINAL_OBJECTIVE_HP_TEXT_OUTLINE_COLOR)
+	found_label.add_theme_constant_override("outline_size", FINAL_OBJECTIVE_HP_TEXT_OUTLINE_SIZE)
+	found_label.z_index = 30
 
-	var background_panel: Panel = objective_info_bar.get_node_or_null("Panel") as Panel
-	if background_panel != null:
-		background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	objective_hp_back_texture = found_back_texture
+	objective_hp_fill_clip = found_fill_clip
+	objective_hp_fill_texture = found_fill_texture
+	objective_hp_preview_loss_clip = found_preview_loss_clip
+	objective_hp_preview_loss_texture = found_preview_loss_texture
+	objective_hp_frame_texture = found_frame_texture
+	objective_hp_label = found_label
 
 	objective_info_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -226,19 +407,9 @@ func _ensure_skill_ui_by_trigger(trigger_type: String) -> void:
 		ui_container.add_child(trigger_label)
 
 	var flash_overlay: ColorRect = skill_ui_root.get_node_or_null("SkillFlashOverlay") as ColorRect
-	if flash_overlay == null:
-		flash_overlay = ColorRect.new()
-		flash_overlay.name = "SkillFlashOverlay"
-		flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-		flash_overlay.offset_left = 0.0
-		flash_overlay.offset_top = 0.0
-		flash_overlay.offset_right = 0.0
-		flash_overlay.offset_bottom = 0.0
-		flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if flash_overlay != null:
 		flash_overlay.visible = false
-		flash_overlay.color = Color(1.0, 0.95, 0.35, 0.0)
-		flash_overlay.z_index = 100
-		skill_ui_root.add_child(flash_overlay)
+		flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	skill_name_label_by_trigger[trigger_type] = name_label
 	skill_short_label_by_trigger[trigger_type] = short_label
@@ -286,7 +457,8 @@ func _set_default_skill_ui_text(trigger_type: String) -> void:
 
 func _refresh_ui() -> void:
 	if objective_name_label != null:
-		objective_name_label.text = "최종목표"
+		objective_name_label.visible = false
+		objective_name_label.text = ""
 
 	_refresh_hp_ui()
 
@@ -303,9 +475,14 @@ func _refresh_hp_ui() -> void:
 		displayed_hp = clamp(preview_hp, 0, clamped_current_hp)
 
 	var total_width: float = objective_info_bar.get_global_rect().size.x
+	var total_height: float = objective_info_bar.get_global_rect().size.y
+
 	if total_width <= 0.0:
 		total_width = objective_info_bar.size.x
-	if total_width <= 0.0:
+	if total_height <= 0.0:
+		total_height = objective_info_bar.size.y
+
+	if total_width <= 0.0 or total_height <= 0.0:
 		call_deferred("_refresh_hp_ui")
 		return
 
@@ -313,35 +490,79 @@ func _refresh_hp_ui() -> void:
 	var displayed_ratio: float = float(displayed_hp) / float(safe_max_hp)
 	var current_width: float = total_width * current_ratio
 	var displayed_width: float = total_width * displayed_ratio
+	var preview_loss_width: float = max(0.0, current_width - displayed_width)
 
-	if objective_hp_fill_rect != null:
-		objective_hp_fill_rect.color = HP_BAR_FILL_COLOR
-		objective_hp_fill_rect.anchor_left = 0.0
-		objective_hp_fill_rect.anchor_top = 0.0
-		objective_hp_fill_rect.anchor_right = 0.0
-		objective_hp_fill_rect.anchor_bottom = 1.0
-		objective_hp_fill_rect.offset_left = 0.0
-		objective_hp_fill_rect.offset_top = 0.0
-		objective_hp_fill_rect.offset_right = current_width
-		objective_hp_fill_rect.offset_bottom = 0.0
-		objective_hp_fill_rect.visible = clamped_current_hp > 0
+	if objective_hp_back_texture != null:
+		objective_hp_back_texture.anchor_left = 0.0
+		objective_hp_back_texture.anchor_top = 0.0
+		objective_hp_back_texture.anchor_right = 0.0
+		objective_hp_back_texture.anchor_bottom = 0.0
+		objective_hp_back_texture.offset_left = HP_FILL_OFFSET_LEFT
+		objective_hp_back_texture.offset_top = HP_FILL_OFFSET_TOP
+		objective_hp_back_texture.offset_right = total_width + HP_FILL_OFFSET_RIGHT
+		objective_hp_back_texture.offset_bottom = total_height + HP_FILL_OFFSET_BOTTOM
+		objective_hp_back_texture.modulate = HP_BAR_BACK_MODULATE
+		objective_hp_back_texture.visible = true
 
-	if objective_hp_preview_loss_rect != null:
-		var preview_loss_width: float = max(0.0, current_width - displayed_width)
-		objective_hp_preview_loss_rect.color = HP_BAR_PREVIEW_LOSS_COLOR
-		objective_hp_preview_loss_rect.offset_left = displayed_width
-		objective_hp_preview_loss_rect.offset_top = 0.0
-		objective_hp_preview_loss_rect.offset_right = preview_loss_width
-		objective_hp_preview_loss_rect.offset_bottom = 0.0
-		objective_hp_preview_loss_rect.visible = is_hp_preview_visible and preview_loss_width > 0.0
+	if objective_hp_fill_clip != null:
+		objective_hp_fill_clip.anchor_left = 0.0
+		objective_hp_fill_clip.anchor_top = 0.0
+		objective_hp_fill_clip.anchor_right = 0.0
+		objective_hp_fill_clip.anchor_bottom = 0.0
+		objective_hp_fill_clip.offset_left = 0.0
+		objective_hp_fill_clip.offset_top = 0.0
+		objective_hp_fill_clip.offset_right = current_width
+		objective_hp_fill_clip.offset_bottom = total_height
+		objective_hp_fill_clip.visible = clamped_current_hp > 0
+
+	if objective_hp_fill_texture != null:
+		objective_hp_fill_texture.anchor_left = 0.0
+		objective_hp_fill_texture.anchor_top = 0.0
+		objective_hp_fill_texture.anchor_right = 0.0
+		objective_hp_fill_texture.anchor_bottom = 0.0
+		objective_hp_fill_texture.offset_left = HP_FILL_OFFSET_LEFT
+		objective_hp_fill_texture.offset_top = HP_FILL_OFFSET_TOP
+		objective_hp_fill_texture.offset_right = total_width + HP_FILL_OFFSET_RIGHT
+		objective_hp_fill_texture.offset_bottom = total_height + HP_FILL_OFFSET_BOTTOM
+		objective_hp_fill_texture.modulate = HP_BAR_FILL_MODULATE
+
+	if objective_hp_preview_loss_clip != null:
+		objective_hp_preview_loss_clip.anchor_left = 0.0
+		objective_hp_preview_loss_clip.anchor_top = 0.0
+		objective_hp_preview_loss_clip.anchor_right = 0.0
+		objective_hp_preview_loss_clip.anchor_bottom = 0.0
+		objective_hp_preview_loss_clip.offset_left = displayed_width
+		objective_hp_preview_loss_clip.offset_top = 0.0
+		objective_hp_preview_loss_clip.offset_right = displayed_width + preview_loss_width
+		objective_hp_preview_loss_clip.offset_bottom = total_height
+		objective_hp_preview_loss_clip.visible = is_hp_preview_visible and preview_loss_width > 0.0
+
+	if objective_hp_preview_loss_texture != null:
+		objective_hp_preview_loss_texture.anchor_left = 0.0
+		objective_hp_preview_loss_texture.anchor_top = 0.0
+		objective_hp_preview_loss_texture.anchor_right = 0.0
+		objective_hp_preview_loss_texture.anchor_bottom = 0.0
+		objective_hp_preview_loss_texture.offset_left = -displayed_width + HP_FILL_OFFSET_LEFT
+		objective_hp_preview_loss_texture.offset_top = HP_FILL_OFFSET_TOP
+		objective_hp_preview_loss_texture.offset_right = total_width - displayed_width + HP_FILL_OFFSET_RIGHT
+		objective_hp_preview_loss_texture.offset_bottom = total_height + HP_FILL_OFFSET_BOTTOM
+		objective_hp_preview_loss_texture.modulate = HP_BAR_PREVIEW_LOSS_MODULATE
+	if objective_hp_frame_texture != null:
+		objective_hp_frame_texture.set_anchors_preset(Control.PRESET_FULL_RECT)
+		objective_hp_frame_texture.offset_left = 0.0
+		objective_hp_frame_texture.offset_top = 0.0
+		objective_hp_frame_texture.offset_right = 0.0
+		objective_hp_frame_texture.offset_bottom = 0.0
+		objective_hp_frame_texture.visible = true
 
 	if objective_hp_label != null:
-		if is_hp_preview_visible and displayed_hp != clamped_current_hp:
-			objective_hp_label.text = "HP %d >> %d/%d" % [clamped_current_hp, displayed_hp, max_hp]
-		else:
-			objective_hp_label.text = "HP %d/%d" % [clamped_current_hp, max_hp]
+		objective_hp_label.offset_top = HP_LABEL_OFFSET_Y
+		objective_hp_label.offset_bottom = HP_LABEL_OFFSET_Y
 
-
+	if is_hp_preview_visible and displayed_hp != clamped_current_hp:
+		objective_hp_label.text = "HP %d >> %d/%d" % [clamped_current_hp, displayed_hp, max_hp]
+	else:
+		objective_hp_label.text = "HP %d/%d" % [clamped_current_hp, max_hp]
 func set_hp(value: int) -> void:
 	current_hp = clamp(value, 0, max_hp)
 	clear_hp_preview()
@@ -424,22 +645,30 @@ func set_skill_display(trigger_type: String, display_name: String, short_text: S
 func play_skill_ui_trigger_feedback(trigger_type: String) -> void:
 	_ensure_skill_ui_by_trigger(trigger_type)
 
-	var flash_overlay: ColorRect = skill_flash_overlay_by_trigger.get(trigger_type, null) as ColorRect
-	if flash_overlay == null:
+	var skill_ui_root: Control = _get_or_find_skill_ui_root(trigger_type)
+	if skill_ui_root == null:
 		return
 
-	flash_overlay.visible = true
-	flash_overlay.color = Color(1.0, 0.95, 0.35, 0.82)
-	flash_overlay.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	var ui_container: Control = skill_ui_root.get_node_or_null("Background") as Control
+	if ui_container == null:
+		ui_container = skill_ui_root
+
+	var skill_icon: Control = ui_container.get_node_or_null("SkillIcon") as Control
+	if skill_icon == null:
+		skill_icon = skill_ui_root
+
+	var old_tween: Tween = skill_feedback_tween_by_trigger.get(trigger_type, null) as Tween
+	if old_tween != null and old_tween.is_valid():
+		old_tween.kill()
+
+	skill_icon.scale = Vector2.ONE
+	skill_icon.pivot_offset = skill_icon.size * 0.5
 
 	var tween: Tween = create_tween()
-	tween.tween_property(flash_overlay, "modulate:a", 1.0, 0.08)
-	tween.tween_property(flash_overlay, "modulate:a", 0.0, 0.2)
-	tween.finished.connect(
-		func() -> void:
-			if flash_overlay != null and is_instance_valid(flash_overlay):
-				flash_overlay.visible = false
-	)
+	skill_feedback_tween_by_trigger[trigger_type] = tween
+
+	tween.tween_property(skill_icon, "scale", Vector2(1.22, 1.22), 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_property(skill_icon, "scale", Vector2.ONE, 0.14).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _get_trigger_display_name(trigger_type: String) -> String:

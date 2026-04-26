@@ -12,540 +12,389 @@ var slot_no: int = 0
 var is_face_down: bool = false
 var is_flipping: bool = false
 
-var current_attack: int = 2
+var current_attack: int = 0
 var current_effect_symbols: Array[String] = []
 
 var _body: ColorRect = null
 
-var _attack_badge_panel: Panel = null
-var _attack_icon_label: Label = null
+var _image_panel: Control = null
+var _image_texture: TextureRect = null
+var _image_label: Label = null
+
+var _attack_root: Control = null
+var _attack_sword_label: Label = null
 var _attack_label: Label = null
 
-var _effect_container: HBoxContainer = null
-var _effect_badge_panels: Array[Panel] = []
-var _effect_labels: Array[Label] = []
+var _effect_root: Control = null
+var _effect_label: Label = null
 
-var _hp_badge_root: Control = null
-var _hp_icon_label: Label = null
+var _hp_root: Control = null
 var _hp_label: Label = null
 
-var _hp_preview_badge_root: Control = null
-var _hp_preview_arrow_label: Label = null
-var _hp_preview_icon_label: Label = null
-var _hp_preview_label: Label = null
-var _hp_preview_back_overlay: ColorRect = null
-var _hp_preview_default_position: Vector2 = Vector2.ZERO
+var _preview_hp_root: Control = null
+var _preview_hp_label: Label = null
+
+var _text_panel: Control = null
+var _summary_label: RichTextLabel = null
+
+@export var use_editor_layout: bool = true
 
 var _front_color: Color = Color(0.18, 0.18, 0.18, 0.88)
 var _back_color: Color = Color(0.10, 0.10, 0.10, 0.95)
 var _highlight_color: Color = Color(0.85, 0.20, 0.20, 0.95)
 
-
 func setup_unit(new_slot_no: int, unit_size: Vector2) -> void:
 	slot_no = new_slot_no
 	position = Vector2.ZERO
 	size = unit_size
+	custom_minimum_size = unit_size
 	scale = Vector2.ONE
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_ensure_visual_nodes()
-	_layout_visual_nodes()
-	apply_front_face()
+	_bind_nodes()
+	_apply_root_layout(unit_size)
+
+	if _attack_root != null:
+		_attack_root.self_modulate = Color(1.0, 1.0, 1.0, 0.0)
+
+	if not use_editor_layout:
+		_apply_badge_layouts()
+
+		if _image_label != null:
+			_image_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+			_image_label.offset_left = 0.0
+			_image_label.offset_top = 0.0
+			_image_label.offset_right = 0.0
+			_image_label.offset_bottom = 0.0
+
+	if _image_label != null:
+		_image_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_image_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_image_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	if _attack_sword_label != null:
+		_attack_sword_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_attack_sword_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	if _attack_label != null:
+		_attack_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_attack_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	if _hp_root is Label:
+		var hp_badge: Label = _hp_root as Label
+		hp_badge.visible = true
+		hp_badge.text = "♥"
+		hp_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hp_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	if _hp_label != null:
+		_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	set_monster_image_placeholder(str(slot_no))
 	set_attack_value(current_attack)
 	set_effect_symbols([])
 	set_hp_text(0)
+
+	set_summary_text("")
 	clear_hp_preview()
+	apply_front_face()
 
+func _apply_badge_layouts() -> void:
+	if _attack_root != null:
+		_attack_root.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_attack_root.offset_left = 4.0
+		_attack_root.offset_top = 4.0
+		_attack_root.offset_right = 42.0
+		_attack_root.offset_bottom = 22.0
 
-func _ensure_visual_nodes() -> void:
-	_body = get_node_or_null("MonsterBody") as ColorRect
-	if _body == null:
-		_body = ColorRect.new()
-		_body.name = "MonsterBody"
-		_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_body)
-
-	_hp_preview_back_overlay = get_node_or_null("MonsterHpPreviewBackOverlay") as ColorRect
-	if _hp_preview_back_overlay == null:
-		_hp_preview_back_overlay = ColorRect.new()
-		_hp_preview_back_overlay.name = "MonsterHpPreviewBackOverlay"
-		_hp_preview_back_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_preview_back_overlay.visible = false
-		_hp_preview_back_overlay.color = Color(0.08, 0.08, 0.08, 0.45)
-		add_child(_hp_preview_back_overlay)
-
-	_attack_badge_panel = get_node_or_null("MonsterAttackBadge") as Panel
-	if _attack_badge_panel == null:
-		_attack_badge_panel = Panel.new()
-		_attack_badge_panel.name = "MonsterAttackBadge"
-		_attack_badge_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_attack_badge_panel)
-
-	_attack_icon_label = _attack_badge_panel.get_node_or_null("MonsterAttackIconLabel") as Label
-	if _attack_icon_label == null:
-		_attack_icon_label = Label.new()
-		_attack_icon_label.name = "MonsterAttackIconLabel"
-		_attack_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_attack_icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_attack_icon_label.add_theme_font_size_override("font_size", 18)
-		_attack_icon_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		_attack_icon_label.text = "⚔"
-		_attack_icon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_attack_badge_panel.add_child(_attack_icon_label)
-
-	_attack_label = _attack_badge_panel.get_node_or_null("MonsterAttackLabel") as Label
-	if _attack_label == null:
-		_attack_label = Label.new()
-		_attack_label.name = "MonsterAttackLabel"
-		_attack_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_attack_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_attack_label.add_theme_font_size_override("font_size", 20)
-		_attack_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		_attack_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_attack_badge_panel.add_child(_attack_label)
-
-	_effect_container = get_node_or_null("MonsterEffectContainer") as HBoxContainer
-	if _effect_container == null:
-		_effect_container = HBoxContainer.new()
-		_effect_container.name = "MonsterEffectContainer"
-		_effect_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_effect_container.alignment = BoxContainer.ALIGNMENT_CENTER
-		_effect_container.add_theme_constant_override("separation", 4)
-		add_child(_effect_container)
-	_effect_badge_panels.clear()
-	_effect_labels.clear()
-
-	for i in range(3):
-		var badge_name: String = "MonsterEffectBadge%d" % (i + 1)
-		var badge_panel: Panel = _effect_container.get_node_or_null(badge_name) as Panel
-		if badge_panel == null:
-			badge_panel = Panel.new()
-			badge_panel.name = badge_name
-			badge_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			badge_panel.visible = false
-			badge_panel.custom_minimum_size = Vector2(34, 34)
-
-			var transparent_style := StyleBoxFlat.new()
-			transparent_style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
-			transparent_style.border_width_left = 0
-			transparent_style.border_width_top = 0
-			transparent_style.border_width_right = 0
-			transparent_style.border_width_bottom = 0
-			badge_panel.add_theme_stylebox_override("panel", transparent_style)
-
-			_effect_container.add_child(badge_panel)
-
-		var effect_name: String = "MonsterEffectLabel%d" % (i + 1)
-		var effect_label: Label = badge_panel.get_node_or_null(effect_name) as Label
-		if effect_label == null:
-			effect_label = Label.new()
-			effect_label.name = effect_name
-			effect_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-			effect_label.offset_left = 0.0
-			effect_label.offset_top = 0.0
-			effect_label.offset_right = 0.0
-			effect_label.offset_bottom = 0.0
-			effect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			effect_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			effect_label.add_theme_font_size_override("font_size", 26)
-			effect_label.add_theme_color_override("font_color", Color(0.75, 0.95, 1.0, 1.0))
-			effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			badge_panel.add_child(effect_label)
-
-		_effect_badge_panels.append(badge_panel)
-		_effect_labels.append(effect_label)
-
-	_hp_badge_root = get_node_or_null("MonsterHpBadgeRoot") as Control
-	if _hp_badge_root == null:
-		_hp_badge_root = Control.new()
-		_hp_badge_root.name = "MonsterHpBadgeRoot"
-		_hp_badge_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(_hp_badge_root)
-
-	_hp_icon_label = _hp_badge_root.get_node_or_null("MonsterHpIconLabel") as Label
-	if _hp_icon_label == null:
-		_hp_icon_label = Label.new()
-		_hp_icon_label.name = "MonsterHpIconLabel"
-		_hp_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_hp_icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_hp_icon_label.add_theme_font_size_override("font_size", 40)
-		_hp_icon_label.add_theme_color_override("font_color", Color(0.92, 0.30, 0.36, 1.0))
-		_hp_icon_label.text = "♥"
-		_hp_icon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_badge_root.add_child(_hp_icon_label)
-
-	_hp_label = _hp_badge_root.get_node_or_null("MonsterHpLabel") as Label
-	if _hp_label == null:
-		_hp_label = Label.new()
-		_hp_label.name = "MonsterHpLabel"
-		_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_hp_label.add_theme_font_size_override("font_size", 22)
-		_hp_label.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-		_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_badge_root.add_child(_hp_label)
-
-	_hp_preview_badge_root = get_node_or_null("MonsterHpPreviewBadgeRoot") as Control
-	if _hp_preview_badge_root == null:
-		_hp_preview_badge_root = Control.new()
-		_hp_preview_badge_root.name = "MonsterHpPreviewBadgeRoot"
-		_hp_preview_badge_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_preview_badge_root.visible = false
-		add_child(_hp_preview_badge_root)
-
-	_hp_preview_arrow_label = _hp_preview_badge_root.get_node_or_null("MonsterHpPreviewArrowLabel") as Label
-	if _hp_preview_arrow_label == null:
-		_hp_preview_arrow_label = Label.new()
-		_hp_preview_arrow_label.name = "MonsterHpPreviewArrowLabel"
-		_hp_preview_arrow_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_hp_preview_arrow_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_hp_preview_arrow_label.add_theme_font_size_override("font_size", 16)
-		_hp_preview_arrow_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.50, 0.95))
-		_hp_preview_arrow_label.text = "▼"
-		_hp_preview_arrow_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_preview_badge_root.add_child(_hp_preview_arrow_label)
-
-	_hp_preview_icon_label = _hp_preview_badge_root.get_node_or_null("MonsterHpPreviewIconLabel") as Label
-	if _hp_preview_icon_label == null:
-		_hp_preview_icon_label = Label.new()
-		_hp_preview_icon_label.name = "MonsterHpPreviewIconLabel"
-		_hp_preview_icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_hp_preview_icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_hp_preview_icon_label.add_theme_font_size_override("font_size", 28)
-		_hp_preview_icon_label.add_theme_color_override("font_color", Color(1.0, 0.65, 0.70, 0.85))
-		_hp_preview_icon_label.text = "♥"
-		_hp_preview_icon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_preview_badge_root.add_child(_hp_preview_icon_label)
-
-	_hp_preview_label = _hp_preview_badge_root.get_node_or_null("MonsterHpPreviewLabel") as Label
-	if _hp_preview_label == null:
-		_hp_preview_label = Label.new()
-		_hp_preview_label.name = "MonsterHpPreviewLabel"
-		_hp_preview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_hp_preview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		_hp_preview_label.add_theme_font_size_override("font_size", 16)
-		_hp_preview_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.95))
-		_hp_preview_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_hp_preview_badge_root.add_child(_hp_preview_label)
-
-	if _body != null:
-		_body.z_index = 0
-	if _hp_preview_back_overlay != null:
-		_hp_preview_back_overlay.z_index = 1
-	if _attack_badge_panel != null:
-		_attack_badge_panel.z_index = 2
-	if _effect_container != null:
-		_effect_container.z_index = 2
-	if _hp_badge_root != null:
-		_hp_badge_root.z_index = 2
-	if _hp_preview_badge_root != null:
-		_hp_preview_badge_root.z_index = 3
-
-
-func _layout_visual_nodes() -> void:
-	if _body != null:
-		_body.position = Vector2.ZERO
-		_body.size = size
-
-	if _hp_preview_back_overlay != null:
-		_hp_preview_back_overlay.position = Vector2.ZERO
-		_hp_preview_back_overlay.size = size
-
-	var badge_top_y: float = 1.0
-	var attack_left_x: float = 1.0
-	var attack_badge_size: Vector2 = Vector2(64, 36)
-
-	if _attack_badge_panel != null:
-		_attack_badge_panel.position = Vector2(attack_left_x, badge_top_y)
-		_attack_badge_panel.size = attack_badge_size
-
-		var attack_style := StyleBoxFlat.new()
-		attack_style.bg_color = Color(0.93, 0.72, 0.18, 1.0)
-		attack_style.border_color = Color(1.0, 0.95, 0.72, 1.0)
-		attack_style.border_width_left = 2
-		attack_style.border_width_top = 2
-		attack_style.border_width_right = 2
-		attack_style.border_width_bottom = 2
-		attack_style.corner_radius_top_left = 14
-		attack_style.corner_radius_top_right = 14
-		attack_style.corner_radius_bottom_left = 14
-		attack_style.corner_radius_bottom_right = 14
-		_attack_badge_panel.add_theme_stylebox_override("panel", attack_style)
-
-	if _attack_icon_label != null:
-		_attack_icon_label.position = Vector2(3, 1)
-		_attack_icon_label.size = Vector2(24, 34)
+	if _attack_sword_label != null:
+		_attack_sword_label.text = "⚔"
+		_attack_sword_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_attack_sword_label.offset_left = 4.0
+		_attack_sword_label.offset_top = 0.0
+		_attack_sword_label.offset_right = -18.0
+		_attack_sword_label.offset_bottom = 0.0
+		_attack_sword_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_attack_sword_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_attack_sword_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	if _attack_label != null:
-		_attack_label.position = Vector2(26, 0)
-		_attack_label.size = Vector2(34, 34)
+		_attack_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_attack_label.offset_left = 16.0
+		_attack_label.offset_top = 0.0
+		_attack_label.offset_right = -4.0
+		_attack_label.offset_bottom = 0.0
+		_attack_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_attack_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_attack_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var hp_badge_size: Vector2 = Vector2(52, 46)
-	var hp_left_x: float = size.x - hp_badge_size.x + 6.0
-	var hp_top_y: float = -8.0
-
-	if _hp_badge_root != null:
-		_hp_badge_root.position = Vector2(hp_left_x, hp_top_y)
-		_hp_badge_root.size = hp_badge_size
-
-	if _hp_icon_label != null:
-		_hp_icon_label.position = Vector2(0, -2)
-		_hp_icon_label.size = hp_badge_size
+	if _hp_root != null:
+		_hp_root.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		_hp_root.offset_left = -42.0
+		_hp_root.offset_top = 4.0
+		_hp_root.offset_right = -4.0
+		_hp_root.offset_bottom = 22.0
 
 	if _hp_label != null:
-		_hp_label.position = Vector2(0, 1)
-		_hp_label.size = hp_badge_size
+		_hp_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_hp_label.offset_left = 0.0
+		_hp_label.offset_top = 0.0
+		_hp_label.offset_right = 0.0
+		_hp_label.offset_bottom = 0.0
+		_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	var hp_preview_badge_size: Vector2 = Vector2(40, 38)
-	var hp_preview_left_x: float = hp_left_x - 4.0
-	var hp_preview_top_y: float = hp_top_y + 34.0
+func _bind_nodes() -> void:
+	_body = get_node_or_null("ColorRect") as ColorRect
 
-	if _hp_preview_badge_root != null:
-		_hp_preview_badge_root.position = Vector2(hp_preview_left_x, hp_preview_top_y)
-		_hp_preview_badge_root.size = hp_preview_badge_size
-		_hp_preview_default_position = _hp_preview_badge_root.position
+	_image_panel = get_node_or_null("MonsterImagePanel") as Control
+	_image_texture = get_node_or_null("MonsterImagePanel/MonsterImageTexture") as TextureRect
+	_image_label = get_node_or_null("MonsterImagePanel/MonsterImageLabel") as Label
 
-	if _hp_preview_arrow_label != null:
-		_hp_preview_arrow_label.position = Vector2(-4.0, -12.0)
-		_hp_preview_arrow_label.size = Vector2(hp_preview_badge_size.x + 8.0, 12.0)
+	_attack_root = get_node_or_null("MonsterImagePanel/MonsterAttackSymbol") as Control
+	_attack_sword_label = get_node_or_null("MonsterImagePanel/MonsterAttackSymbol/MonsterSwordSymbol") as Label
+	_attack_label = get_node_or_null("MonsterImagePanel/MonsterAttackSymbol/MonsterAttackLabel") as Label
 
-	if _hp_preview_icon_label != null:
-		_hp_preview_icon_label.position = Vector2(0, 2)
-		_hp_preview_icon_label.size = hp_preview_badge_size
+	_effect_root = get_node_or_null("MonsterImagePanel/MonsterEffectSymbol") as Control
+	_effect_label = get_node_or_null("MonsterImagePanel/MonsterEffectSymbol/MonsterEffectLabel") as Label
 
-	if _hp_preview_label != null:
-		_hp_preview_label.position = Vector2(0, 4)
-		_hp_preview_label.size = hp_preview_badge_size
-		
-	if _effect_container != null:
-		var effect_left_x: float = attack_left_x + attack_badge_size.x + 8.0
-		var effect_right_x: float = hp_left_x - 8.0
-		var effect_width: float = maxf(0.0, effect_right_x - effect_left_x)
+	_hp_root = get_node_or_null("MonsterImagePanel/MonsterLifeBadgeSymbol") as Control
+	_hp_label = get_node_or_null("MonsterImagePanel/MonsterLifeBadgeSymbol/MonsterLifeLabel") as Label
 
-		_effect_container.position = Vector2(effect_left_x, -2.0)
-		_effect_container.size = Vector2(effect_width, 36.0)
+	_preview_hp_root = get_node_or_null("MonsterImagePanel/PreviewLifeBadgeSymbol") as Control
+	_preview_hp_label = get_node_or_null("MonsterImagePanel/PreviewLifeBadgeSymbol/PreviewLifeLabel") as Label
 
-	for i in range(_effect_badge_panels.size()):
-		var badge_panel: Panel = _effect_badge_panels[i]
-		if badge_panel == null:
-			continue
+	_text_panel = get_node_or_null("MonsterTextPanel") as Control
+	_summary_label = get_node_or_null("MonsterTextPanel/MonsterSummaryLabel") as RichTextLabel
+	
+func _apply_root_layout(unit_size: Vector2) -> void:
+	size = unit_size
+	custom_minimum_size = unit_size
 
-		badge_panel.custom_minimum_size = Vector2(34, 34)
+	if _body != null:
+		_body.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_body.offset_left = 0.0
+		_body.offset_top = 0.0
+		_body.offset_right = 0.0
+		_body.offset_bottom = 0.0
 
+func set_monster_image_placeholder(text: String) -> void:
+	if _image_texture != null:
+		_image_texture.texture = null
+		_image_texture.visible = false
+
+	if _image_label == null:
+		return
+
+	_image_label.text = text
+	_image_label.visible = true
+
+func set_monster_image_by_path(image_path: String) -> void:
+	if image_path == "":
+		set_monster_image_placeholder(str(slot_no))
+		return
+
+	var loaded_texture: Texture2D = load(image_path) as Texture2D
+	if loaded_texture == null:
+		set_monster_image_placeholder(str(slot_no))
+		return
+
+	if _image_texture != null:
+		_image_texture.texture = loaded_texture
+		_image_texture.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		_image_texture.visible = true
+
+	if _image_label != null:
+		_image_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		_image_label.visible = false
 
 func set_attack_value(value: int) -> void:
-	_ensure_visual_nodes()
-
 	current_attack = max(0, value)
 
+	if _attack_root != null:
+		_attack_root.visible = true
+
+	if _attack_sword_label != null:
+		_attack_sword_label.visible = true
+		_attack_sword_label.text = "⚔"
+
 	if _attack_label != null:
+		_attack_label.visible = true
 		_attack_label.text = str(current_attack)
 
-
 func set_hp_text(hp: int) -> void:
-	_ensure_visual_nodes()
+	if _hp_root is Label:
+		var hp_badge: Label = _hp_root as Label
+		hp_badge.visible = true
+		hp_badge.text = "♥"
+		hp_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		hp_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 	if _hp_label == null:
 		return
 
+	_hp_label.visible = true
 	_hp_label.text = str(max(0, hp))
+	_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
-
-func show_hp_preview(current_hp: int, preview_hp: int) -> void:
-	_ensure_visual_nodes()
-	_layout_visual_nodes()
-
-	if is_face_down:
+func show_hp_preview(current_hp: int, after_hp: int) -> void:
+	if after_hp >= current_hp:
 		clear_hp_preview()
 		return
 
-	if preview_hp == current_hp:
-		clear_hp_preview()
-		return
+	if _preview_hp_root != null:
+		_preview_hp_root.visible = true
 
-	if _hp_preview_badge_root == null:
-		return
+	if _preview_hp_root is Label:
+		var preview_badge: Label = _preview_hp_root as Label
+		preview_badge.text = "♥"
+		preview_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		preview_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
-	_hp_preview_badge_root.visible = true
-	_hp_preview_badge_root.position = _hp_preview_default_position
-	_hp_preview_badge_root.scale = Vector2.ONE
-	_hp_preview_badge_root.modulate = Color(1, 1, 1, 0.88)
-
-	if _hp_preview_arrow_label != null:
-		_hp_preview_arrow_label.visible = true
-
-	if preview_hp <= 0:
-		if _hp_preview_icon_label != null:
-			_hp_preview_icon_label.visible = false
-
-		if _hp_preview_label != null:
-			_hp_preview_label.text = "KO"
-			_hp_preview_label.add_theme_font_size_override("font_size", 16)
-			_hp_preview_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.82, 1.0))
-
-		if _hp_preview_back_overlay != null:
-			_hp_preview_back_overlay.visible = true
-			_hp_preview_back_overlay.modulate = Color(1, 1, 1, 1)
-	else:
-		if _hp_preview_icon_label != null:
-			_hp_preview_icon_label.visible = true
-
-		if _hp_preview_label != null:
-			_hp_preview_label.text = str(max(0, preview_hp))
-			_hp_preview_label.add_theme_font_size_override("font_size", 16)
-			_hp_preview_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.98))
-
-		if _hp_preview_back_overlay != null:
-			_hp_preview_back_overlay.visible = false
-
+	if _preview_hp_label != null:
+		_preview_hp_label.visible = true
+		_preview_hp_label.text = str(max(0, after_hp))
+		_preview_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_preview_hp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 func clear_hp_preview() -> void:
-	if _hp_preview_badge_root != null:
-		_hp_preview_badge_root.visible = false
-		_hp_preview_badge_root.position = _hp_preview_default_position
-		_hp_preview_badge_root.scale = Vector2.ONE
-		_hp_preview_badge_root.modulate = Color(1, 1, 1, 0.88)
+	if _preview_hp_root != null:
+		_preview_hp_root.visible = false
 
-	if _hp_preview_arrow_label != null:
-		_hp_preview_arrow_label.visible = false
-
-	if _hp_preview_icon_label != null:
-		_hp_preview_icon_label.visible = true
-
-	if _hp_preview_label != null:
-		_hp_preview_label.text = ""
-
-	if _hp_preview_back_overlay != null:
-		_hp_preview_back_overlay.visible = false
-		_hp_preview_back_overlay.modulate = Color(1, 1, 1, 1)
-
-
-func play_hp_preview_confirm_animation(final_hp: int) -> void:
-	_ensure_visual_nodes()
-
-	if is_face_down:
-		clear_hp_preview()
-		return
-
-	if _hp_preview_badge_root == null or not _hp_preview_badge_root.visible:
-		if final_hp > 0:
-			set_hp_text(final_hp)
-		return
-
-	if final_hp <= 0:
-		var ko_tween = create_tween()
-		ko_tween.set_parallel(true)
-		ko_tween.tween_property(_hp_preview_badge_root, "scale", Vector2(1.12, 1.12), 0.06)
-		ko_tween.tween_property(_hp_preview_badge_root, "modulate", Color(1, 1, 1, 0.0), 0.10)
-
-		if _hp_preview_back_overlay != null:
-			_hp_preview_back_overlay.visible = true
-			_hp_preview_back_overlay.modulate = Color(1, 1, 1, 0.0)
-			ko_tween.tween_property(_hp_preview_back_overlay, "modulate", Color(1, 1, 1, 1.0), 0.10)
-
-		await ko_tween.finished
-		clear_hp_preview()
-		return
-
-	var target_position: Vector2 = Vector2.ZERO
-	if _hp_badge_root != null:
-		target_position = _hp_badge_root.position + Vector2(4.0, -2.0)
-	else:
-		target_position = _hp_preview_default_position
-
-	var absorb_tween = create_tween()
-	absorb_tween.set_parallel(true)
-	absorb_tween.tween_property(_hp_preview_badge_root, "position", target_position, 0.10)
-	absorb_tween.tween_property(_hp_preview_badge_root, "scale", Vector2(0.82, 0.82), 0.10)
-	absorb_tween.tween_property(_hp_preview_badge_root, "modulate", Color(1, 1, 1, 0.0), 0.10)
-	await absorb_tween.finished
-
-	set_hp_text(final_hp)
-	clear_hp_preview()
-
-	if _hp_badge_root != null:
-		_hp_badge_root.scale = Vector2(1.12, 1.12)
-		var pop_tween = create_tween()
-		pop_tween.tween_property(_hp_badge_root, "scale", Vector2.ONE, 0.10)
-		await pop_tween.finished
-
+	if _preview_hp_label != null:
+		_preview_hp_label.visible = false
+		_preview_hp_label.text = ""
 
 func set_effect_symbols(symbols: Array) -> void:
-	_ensure_visual_nodes()
-
 	current_effect_symbols.clear()
+
 	for symbol_variant in symbols:
 		current_effect_symbols.append(String(symbol_variant))
 
-	for i in range(_effect_labels.size()):
-		var effect_label: Label = _effect_labels[i]
-		var badge_panel: Panel = null
+	if _effect_label == null:
+		return
 
-		if i < _effect_badge_panels.size():
-			badge_panel = _effect_badge_panels[i]
+	if current_effect_symbols.is_empty():
+		_effect_label.text = ""
+		if _effect_root != null:
+			_effect_root.visible = false
+		return
 
-		if effect_label == null:
-			continue
+	_effect_label.text = " ".join(current_effect_symbols)
+	if _effect_root != null:
+		_effect_root.visible = true
 
-		if i < current_effect_symbols.size():
-			var symbol_text: String = current_effect_symbols[i]
-			effect_label.text = symbol_text
 
-			if badge_panel != null:
-				badge_panel.visible = symbol_text != ""
-		else:
-			effect_label.text = ""
 
-			if badge_panel != null:
-				badge_panel.visible = false
+func set_summary_text(text: String) -> void:
+	if _summary_label == null:
+		return
 
+	_summary_label.visible = true
+	_summary_label.clear()
+
+	var lines: PackedStringArray = text.split("\n", false)
+	if lines.is_empty():
+		return
+
+	var title_line: String = lines[0]
+	var body_text: String = ""
+
+	if lines.size() >= 2:
+		body_text = "\n".join(lines.slice(1))
+
+	var bbcode_text: String = "[center]"
+	bbcode_text += "[color=#F3E7D3]" + title_line + "[/color]"
+
+	if body_text != "":
+		bbcode_text += "\n[color=#D9C7AE]" + body_text + "[/color]"
+
+	bbcode_text += "[/center]"
+	_summary_label.append_text(bbcode_text)
 
 func apply_front_face() -> void:
-	_ensure_visual_nodes()
-	_layout_visual_nodes()
-
 	is_face_down = false
 
 	if _body != null:
 		_body.color = _front_color
 
-	if _attack_badge_panel != null:
-		_attack_badge_panel.visible = true
+	if _attack_root != null:
+		_attack_root.visible = true
 
-	if _effect_container != null:
-		_effect_container.visible = true
+	if _hp_root != null:
+		_hp_root.visible = true
 
-	if _hp_badge_root != null:
-		_hp_badge_root.visible = true
+	if _effect_root != null:
+		_effect_root.visible = not current_effect_symbols.is_empty()
 
-	clear_hp_preview()
+	if _image_texture != null:
+		_image_texture.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_image_texture.offset_left = 0.0
+		_image_texture.offset_top = 0.0
+		_image_texture.offset_right = 0.0
+		_image_texture.offset_bottom = 0.0
+		_image_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_image_texture.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		_image_texture.visible = _image_texture.texture != null
 
+	if _image_label != null:
+		_image_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_image_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_image_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_image_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+		_image_label.visible = _image_texture == null or _image_texture.texture == null
+
+	if _text_panel != null:
+		_text_panel.visible = true
 
 func apply_back_face() -> void:
-	_ensure_visual_nodes()
-
 	is_face_down = true
 
 	if _body != null:
 		_body.color = _back_color
 
-	if _attack_badge_panel != null:
-		_attack_badge_panel.visible = false
+	if _attack_root != null:
+		_attack_root.visible = false
 
-	if _effect_container != null:
-		_effect_container.visible = false
+	if _hp_root != null:
+		_hp_root.visible = false
 
-	if _hp_badge_root != null:
-		_hp_badge_root.visible = false
+	if _effect_root != null:
+		_effect_root.visible = false
 
-	clear_hp_preview()
+	if _preview_hp_root != null:
+		_preview_hp_root.visible = false
 
+	if _image_texture != null:
+		_image_texture.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_image_texture.offset_left = 0.0
+		_image_texture.offset_top = 0.0
+		_image_texture.offset_right = 0.0
+		_image_texture.offset_bottom = 0.0
+		_image_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_image_texture.modulate = Color(0.60, 0.60, 0.60, 1.0)
+		_image_texture.visible = _image_texture.texture != null
+
+	if _image_label != null:
+		_image_label.modulate = Color(0.60, 0.60, 0.60, 1.0)
+		_image_label.visible = _image_texture == null or _image_texture.texture == null
+
+	if _text_panel != null:
+		_text_panel.visible = true
 
 func set_highlight(is_on: bool) -> void:
-	_ensure_visual_nodes()
-
 	if _body == null:
 		return
+
+	if _image_texture != null:
+		_image_texture.self_modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+	if _image_label != null:
+		_image_label.self_modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 	if is_face_down:
 		_body.color = _back_color
@@ -553,13 +402,16 @@ func set_highlight(is_on: bool) -> void:
 
 	if is_on:
 		_body.color = _highlight_color
+
+		if _image_texture != null and _image_texture.visible:
+			_image_texture.self_modulate = Color(1.0, 0.72, 0.72, 1.0)
+
+		if _image_label != null and _image_label.visible:
+			_image_label.self_modulate = Color(1.0, 0.72, 0.72, 1.0)
 	else:
 		_body.color = _front_color
 
-
 func play_contact_hit_effect() -> void:
-	_ensure_visual_nodes()
-
 	if is_flipping:
 		return
 	if _body == null:
@@ -585,7 +437,6 @@ func play_contact_hit_effect() -> void:
 	return_tween.tween_property(self, "position", root_start_pos, 0.10)
 	return_tween.tween_property(_body, "color", body_start_color, 0.10)
 	await return_tween.finished
-
 
 func flip_to_back() -> void:
 	if is_flipping:
@@ -618,7 +469,6 @@ func flip_to_back() -> void:
 	is_flipping = false
 	_on_after_flip_to_back()
 	after_flip_to_back.emit(self)
-
 
 func flip_to_front(hp: int) -> void:
 	if is_flipping:
@@ -654,26 +504,20 @@ func flip_to_front(hp: int) -> void:
 	_on_after_flip_to_front()
 	after_flip_to_front.emit(self)
 
-
 func _on_before_flip_to_back() -> void:
 	pass
-
 
 func _on_after_flip_to_back() -> void:
 	pass
 
-
 func _on_before_flip_to_front() -> void:
 	pass
-
 
 func _on_after_flip_to_front() -> void:
 	pass
 
-
 func _on_exit_hook() -> void:
 	pass
-
 
 func _on_enter_hook() -> void:
 	pass

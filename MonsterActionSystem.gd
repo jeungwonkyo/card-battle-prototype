@@ -38,8 +38,6 @@ func run_action_phase(trigger_type: String) -> void:
 
 		await _execute_monster_action(slot_no, trigger_type)
 
-	await _execute_final_objective_action(trigger_type)
-
 	print("===== 몬스터 행동 페이즈 종료 / 트리거:", trigger_type, "=====")
 	is_action_phase_in_progress = false
 
@@ -51,16 +49,18 @@ func _execute_monster_action(slot_no: int, trigger_type: String) -> void:
 	if _get_monster_current_hp(slot_no) <= 0:
 		return
 
+	var attack_damage: int = _get_monster_attack_damage(slot_no)
+
 	print(
 		"몬스터 행동 실행 / 슬롯:", slot_no,
 		"/ 트리거:", trigger_type,
-		"/ 기본 공격력:", basic_attack_damage
+		"/ 공격력:", attack_damage
 	)
 
-	if basic_attack_damage > 0:
+	if attack_damage > 0:
 		var monster_unit: Control = _get_monster_unit(slot_no)
 		await _play_attack_motion(monster_unit)
-		_damage_player(basic_attack_damage)
+		_damage_player(attack_damage)
 	else:
 		print("몬스터 행동 스킵 / 공격력 0 / 슬롯:", slot_no)
 
@@ -162,6 +162,14 @@ func _get_monster_current_hp(slot_no: int) -> int:
 
 	return int(battle_scene.call("_get_monster_current_hp", slot_no))
 
+func _get_monster_attack_damage(slot_no: int) -> int:
+	if battle_scene == null:
+		return max(0, basic_attack_damage)
+
+	if battle_scene.has_method("get_monster_attack_by_slot_no"):
+		return max(0, int(battle_scene.call("get_monster_attack_by_slot_no", slot_no)))
+
+	return max(0, basic_attack_damage)
 
 func _get_monster_unit(slot_no: int) -> Control:
 	if battle_scene == null:
@@ -171,7 +179,6 @@ func _get_monster_unit(slot_no: int) -> Control:
 		return null
 
 	return battle_scene.call("_get_monster_unit", slot_no) as Control
-
 
 func _get_final_objective() -> Node:
 	if battle_scene == null:
@@ -183,7 +190,6 @@ func _get_final_objective() -> Node:
 
 	return null
 
-
 func _get_final_objective_hp() -> int:
 	var objective: Node = _get_final_objective()
 	if objective == null:
@@ -193,7 +199,6 @@ func _get_final_objective_hp() -> int:
 		return 0
 
 	return int(objective.call("get_hp"))
-
 
 func _get_final_objective_motion_target() -> Control:
 	var objective: Node = _get_final_objective()
